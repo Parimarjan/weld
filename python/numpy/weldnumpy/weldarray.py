@@ -381,7 +381,16 @@ class weldarray(np.ndarray):
         if restype is None:
             # use default type for all weldarray operations
             restype = WeldVec(self._weld_type)
-        arr = self.weldobj.evaluate(restype, verbose=self._verbose)
+        
+        print('self.shape = ', self.shape)
+        print('self.strides = ', self.strides)
+
+        arr = self.weldobj.evaluate(restype, verbose=self._verbose) 
+
+        # FIXME: is it enough to just update these values?
+        arr.shape = self.shape
+        arr.strides = self.strides
+
         # Now that the evaluation is done - create new weldobject for self,
         # initalized from the returned arr.
         self._gen_weldobj(arr)

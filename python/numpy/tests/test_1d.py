@@ -31,13 +31,13 @@ TYPES = ['float32', 'float64', 'int32', 'int64']
 NUM_ELS = 10
 
 # TODO: Create test with all other ufuncs.
-def random_arrays(num, dtype):
+def random_arrays((shape), dtype):
     '''
     Generates random Weld array, and numpy array of the given num elements.
     '''
     # np.random does not support specifying dtype, so this is a weird
     # way to support both float/int random numbers
-    test = np.zeros((num), dtype=dtype)
+    test = np.zeros((shape), dtype=dtype)
     test[:] = np.random.randn(*test.shape)
     test = np.abs(test)
     # at least add 1 so no 0's (o.w. divide errors)
@@ -111,6 +111,7 @@ def test_multiple_array_creation():
 
 def test_array_indexing():
     '''
+    FIXME:
     Need to decide: If a weldarray item is accessed - should we evaluateuate the
     whole array (for expected behaviour to match numpy) or not?
     '''
@@ -139,12 +140,6 @@ def test_type_conversion():
         w2 = np.add(w, w2)
         weld_result = w2.evaluate()
         assert weld_result.dtype == t
-
-def test_concat():
-    '''
-    Test concatenation of arrays - either Weld - Weld, or Weld - Numpy etc.
-    '''
-    pass
 
 def test_views_basic():
     '''
