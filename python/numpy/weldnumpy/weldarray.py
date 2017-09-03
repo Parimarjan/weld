@@ -33,6 +33,18 @@ class weldarray(np.ndarray):
         obj._weldarray_view = None
 
         return obj
+    
+    def __array_finalize__(self, obj):
+        '''
+        TODO: decide wtf to do here.
+        '''
+        pass
+        # print('in array finalize!')
+        # print('   self type is %s' % type(self))
+        # print(len(self))
+        # print('   obj type is %s' % type(obj))
+        # print(len(obj))
+        # print(obj.flags)
 
     def __repr__(self):
         '''
@@ -73,10 +85,14 @@ class weldarray(np.ndarray):
                     base_array, parent_array, and start/end/strides/idx values.
         '''
         # Need to cast it as ndarray view before calling ndarray's __getitem__ implementation.
-        ret = self.view(np.ndarray).__getitem__(idx)
+        print('!!!!!!!!!!!fuck the viewws!!!!!!!!!!!!')
+
         if isinstance(idx, slice):
+            ret = self.view(np.ndarray).__getitem__(idx)
+
             # TODO: The way we treat views now, views don't need their own weldobj - just the
             # weldview object. Could be a minor optimization.
+            print('going to turn this into weldarray')
             ret = weldarray(ret, verbose=self._verbose)
             # check if ret really is a view of arr. If not, then don't need to make changes to
             # ret's weldarray_view etc.
@@ -90,8 +106,12 @@ class weldarray(np.ndarray):
 
                 # start / end is relative to the base_array because all future in place updates to
                 # the view would be made on the relevant indices on the base array.
-                start = par_start + idx.start
-                end = par_start + idx.stop
+                if idx.start: start = par_start + idx.start
+                else: start = par_start
+
+                if idx.stop: end = par_start + idx.stop
+                # FIXME: not sure what happens here in the multi-d case - need to test that.
+                else: end = par_start + len(self)
                 # ret is a view, initialize its weldview.
                 ret._weldarray_view = weldarray_view(base_array, self, start, end, idx)
 
@@ -108,8 +128,12 @@ class weldarray(np.ndarray):
             ret = arr.__getitem__(idx)
             # return the scalar.
             return ret
+        elif isinstance(idx, tuple):
+            ret = self.view(np.ndarray).__getitem__(idx)
+            print('ret: ', ret)
+            return weldarray(ret)
         else:
-            assert False, 'idx type not supported'
+            assert False, 'unsupported idx in views'
 
     def __setitem__(self, idx, val):
         '''
@@ -365,6 +389,7 @@ class weldarray(np.ndarray):
         call evaluate which would return a weldarray as expected. This returns an ndarray.
         '''
         # This check has to happen before the caching - as the weldobj/code for views is never updated.
+        print('_eval')
         if self._weldarray_view:
             # _eval parent and return appropriate idx.
             # TODO: Clearly more efficient to _eval the base array as the parent would eventually have to do
@@ -376,16 +401,22 @@ class weldarray(np.ndarray):
         if self.name == self.weldobj.weld_code:
             # No new ops have been registered. Avoid creating unneccessary new copies with
             # weldobj.evaluate()
+            print('caching effects')
             return self.weldobj.context[self.name]
 
         if restype is None:
             # use default type for all weldarray operations
             restype = WeldVec(self._weld_type)
         
-        print('self.shape = ', self.shape)
-        print('self.strides = ', self.strides)
-
         arr = self.weldobj.evaluate(restype, verbose=self._verbose) 
+        
+        print(arr.shape)
+        print(arr.strides)
+        print(arr.flags)
+        print('self: ')
+        print(self.shape)
+        print(self.strides)
+        print(self.flags)
 
         # FIXME: is it enough to just update these values?
         arr.shape = self.shape
