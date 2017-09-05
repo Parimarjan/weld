@@ -208,6 +208,27 @@ fn negated_arithmetic() {
     unsafe { free_value_and_module(ret_value) };
 }
 
+fn bool_eq() {
+    let code = "|| [(2 < 3) != (2 > 2), true == false]";
+
+    let conf = default_conf();
+
+    let ref input_data: i32 = 0;
+
+    let ret_value = compile_and_run(code, conf, input_data);
+    let data = unsafe { weld_value_data(ret_value) as *const WeldVec<bool> };
+    let result = unsafe { (*data).clone() };
+
+    assert_eq!(result.len, 2);
+
+    let bool1 = unsafe { (*result.data.offset(0)).clone() };
+    let bool2 = unsafe { (*result.data.offset(1)).clone() };
+    assert_eq!(bool1, true);
+    assert_eq!(bool2, false);
+
+    unsafe { free_value_and_module(ret_value) };
+}
+
 // TODO(shoumik): - Failing on Linux. Will fix in a in PR
 // For the C UDF integration test.
 // #[no_mangle]
@@ -581,6 +602,90 @@ fn le_between_unsigned_vectors() {
         },
         y: WeldVec {
             data: &input_vec2 as *const i32,
+            len: input_vec2.len() as i64,
+        },
+    };
+    let ret_value = compile_and_run(code, conf, input_data);
+    let data = unsafe { weld_value_data(ret_value) as *const bool };
+    let result = unsafe { *data };
+    assert_eq!(result, true);
+    unsafe { free_value_and_module(ret_value) };
+}
+
+fn eq_between_u8_vectors() {
+    #[allow(dead_code)]
+    struct Args {
+        x: WeldVec<u8>,
+        y: WeldVec<u8>,
+    }
+    let conf = default_conf();
+
+    let code = "|e0: vec[u8], e1: vec[u8]| e0 == e1";
+    let input_vec1 = [1u8, 2u8, 3u8, 4u8, 5u8];
+    let input_vec2 = [1u8, 2u8, 3u8, 4u8, 5u8];
+    let ref input_data = Args {
+        x: WeldVec {
+            data: &input_vec1 as *const u8,
+            len: input_vec1.len() as i64,
+        },
+        y: WeldVec {
+            data: &input_vec2 as *const u8,
+            len: input_vec2.len() as i64,
+        },
+    };
+    let ret_value = compile_and_run(code, conf, input_data);
+    let data = unsafe { weld_value_data(ret_value) as *const bool };
+    let result = unsafe { *data };
+    assert_eq!(result, true);
+    unsafe { free_value_and_module(ret_value) };
+}
+
+fn eq_between_different_length_u8_vectors() {
+    #[allow(dead_code)]
+    struct Args {
+        x: WeldVec<u8>,
+        y: WeldVec<u8>,
+    }
+    let conf = default_conf();
+
+    let code = "|e0: vec[u8], e1: vec[u8]| e0 == e1";
+    let input_vec1 = [1u8, 2u8, 3u8, 4u8, 5u8];
+    let input_vec2 = [1u8, 2u8, 3u8, 4u8, 5u8, 6u8];
+    let ref input_data = Args {
+        x: WeldVec {
+            data: &input_vec1 as *const u8,
+            len: input_vec1.len() as i64,
+        },
+        y: WeldVec {
+            data: &input_vec2 as *const u8,
+            len: input_vec2.len() as i64,
+        },
+    };
+    let ret_value = compile_and_run(code, conf, input_data);
+    let data = unsafe { weld_value_data(ret_value) as *const bool };
+    let result = unsafe { *data };
+    assert_eq!(result, false);
+    unsafe { free_value_and_module(ret_value) };
+}
+
+fn le_between_u8_vectors() {
+    #[allow(dead_code)]
+    struct Args {
+        x: WeldVec<u8>,
+        y: WeldVec<u8>,
+    }
+    let conf = default_conf();
+
+    let code = "|e0: vec[u8], e1: vec[u8]| e0 <= e1";
+    let input_vec1 = [1u8, 2u8, 3u8, 4u8, 5u8];
+    let input_vec2 = [1u8, 2u8, 3u8, 255u8, 5u8];
+    let ref input_data = Args {
+        x: WeldVec {
+            data: &input_vec1 as *const u8,
+            len: input_vec1.len() as i64,
+        },
+        y: WeldVec {
+            data: &input_vec2 as *const u8,
             len: input_vec2.len() as i64,
         },
     };
@@ -2085,6 +2190,7 @@ fn main() {
              ("negation", negation),
              ("negation_double", negation_double),
              ("negated_arithmetic", negated_arithmetic),
+             ("bool_eq", bool_eq),
              //("c_udf", c_udf),
              ("f64_cast", f64_cast),
              ("i32_cast", i32_cast),
@@ -2102,6 +2208,9 @@ fn main() {
              ("lt_between_vectors", lt_between_vectors),
              ("le_between_vectors", le_between_vectors),
              ("le_between_unsigned_vectors", le_between_unsigned_vectors),
+             ("eq_between_u8_vectors", eq_between_u8_vectors),
+             ("eq_between_different_length_u8_vectors", eq_between_different_length_u8_vectors),
+             ("le_between_u8_vectors", le_between_u8_vectors),
              ("simple_vector_lookup", simple_vector_lookup),
              ("simple_vector_slice", simple_vector_slice),
              ("simple_log", simple_log),
@@ -2155,7 +2264,7 @@ fn main() {
              ("simple_float_mod", simple_float_mod),
              ("simple_int_mod", simple_int_mod),
              ("predicate_if_iff_annotated", predicate_if_iff_annotated)];
-    
+
     println!("");
     println!("running tests");
     let mut passed = 0;

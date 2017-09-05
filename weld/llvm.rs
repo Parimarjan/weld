@@ -24,7 +24,7 @@ use super::sir::Terminator::*;
 use super::transforms;
 use super::type_inference;
 use super::util::IdGenerator;
-use super::util::LIB_WELD_RT;
+use super::util::WELD_INLINE_LIB;
 
 #[cfg(test)]
 use super::parser::*;
@@ -64,7 +64,8 @@ pub fn apply_opt_passes(expr: &mut TypedExpr, opt_passes: &Vec<Pass>) -> WeldRes
 }
 
 /// Generate a compiled LLVM module from a program whose body is a function.
-pub fn compile_program(program: &Program, opt_passes: &Vec<Pass>) -> WeldResult<easy_ll::CompiledModule> {
+pub fn compile_program(program: &Program, opt_passes: &Vec<Pass>, llvm_opt_level: u32)
+        -> WeldResult<easy_ll::CompiledModule> {
     let mut expr = macro_processor::process_program(program)?;
     debug!("After macro substitution:\n{}\n", print_typed_expr(&expr));
 
@@ -87,11 +88,15 @@ pub fn compile_program(program: &Program, opt_passes: &Vec<Pass>) -> WeldResult<
     debug!("LLVM program:\n{}\n", &llvm_code);
 
     debug!("Started compiling LLVM");
+
     let start = PreciseTime::now();
-    let module = try!(easy_ll::compile_module(&llvm_code, Some(LIB_WELD_RT)));
+    let module = try!(easy_ll::compile_module(
+        &llvm_code,
+        llvm_opt_level,
+        Some(WELD_INLINE_LIB)));
+    debug!("Done compiling LLVM");
     let end = PreciseTime::now();
     println!("{} seconds for compile module.", start.to(end));
-    debug!("Done compiling LLVM");
 
     debug!("Started runtime_init call");
     module.run_named("runtime_init", 0).unwrap();
@@ -1067,24 +1072,37 @@ impl LlvmGenerator {
         let name = self.vec_ids.next();
         self.vec_names.insert(elem.clone(), name.clone());
 
-		let vector_def = format!(include_str!("resources/vector.ll"),
+		self.prelude_code.add(format!(
+            include_str!("resources/vector/vector.ll"),
 			ELEM_PREFIX=&elem_prefix,
 			ELEM=&elem_ty,
-			NAME=&name.replace("%", ""));
-
-        self.prelude_code.add(&vector_def);
+			NAME=&name.replace("%", "")));
         self.prelude_code.add("\n");
 
-        // Supports vectorization, so add in SIMD extensions.
+        // If the vector contains scalars only, add in SIMD extensions.
         if elem.is_scalar() {
-            let simd_extension = format!(include_str!("resources/vvector.ll"),
+            self.prelude_code.add(format!(
+                include_str!("resources/vector/vvector.ll"),
                 ELEM=elem_ty,
                 NAME=&name.replace("%", ""),
-                VECSIZE=&format!("{}", llvm_simd_size(elem)?));
-
-            self.prelude_code.add(&simd_extension);
+                VECSIZE=&format!("{}", llvm_simd_size(elem)?)));
             self.prelude_code.add("\n");
         }
+
+        // Add the right comparison function for the vector. For vectors of unsigned chars,
+        // we can use memcmp, but for anything else we need element-by-element comparison.
+        if let &Scalar(ScalarKind::U8) = elem {
+            self.prelude_code.add(format!(
+                include_str!("resources/vector/vector_comparison_memcmp.ll"),
+                NAME=&name.replace("%", "")));
+        } else {
+            self.prelude_code.add(format!(
+                include_str!("resources/vector/vector_comparison.ll"),
+                ELEM_PREFIX=&elem_prefix,
+                ELEM=&elem_ty,
+                NAME=&name.replace("%", "")));
+        }
+
         Ok(())
     }
 
@@ -1384,22 +1402,15 @@ impl LlvmGenerator {
         ctx.code.add(format!("; {}", statement));
         match *statement {
             MakeStruct { ref output, ref elems } => {
-                let mut cur_name = String::from("undef");
                 let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
-                for (i, elem) in elems.iter().enumerate() {
+                for (index, elem) in elems.iter().enumerate() {
                     let (elem_ll_ty, elem_ll_sym) = self.llvm_type_and_name(func, elem)?;
                     let elem_value = self.gen_load_var(&elem_ll_sym, &elem_ll_ty, ctx)?;
-                    let struct_name = ctx.var_ids.next();
-                    ctx.code.add(format!("{} = insertvalue {} {}, {} {}, {}",
-                                            &struct_name,
-                                            &output_ll_ty,
-                                            &cur_name,
-                                            &elem_ll_ty,
-                                            &elem_value,
-                                            i));
-                    cur_name = struct_name;
+                    let ptr_tmp = ctx.var_ids.next();
+                    ctx.code.add(format!("{} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}",
+                        ptr_tmp, output_ll_ty, output_ll_ty, output_ll_sym, index));
+                    self.gen_store_var(&elem_value, &ptr_tmp, &elem_ll_ty, ctx);
                 }
-                self.gen_store_var(&cur_name, &output_ll_sym, &output_ll_ty, ctx);
             }
 
             CUDF { ref output, ref symbol_name, ref args } => {
@@ -1464,6 +1475,7 @@ impl LlvmGenerator {
                                              &output_tmp, llvm_binop(op, ty)?, &ll_ty, &left_tmp, &right_tmp));
                         self.gen_store_var(&output_tmp, &output_ll_sym, &output_ll_ty, ctx);
                     }
+
                     Vector(_) => {
                         // We support BinOps between vectors as long as they're comparison operators
                         let (op_name, value) = llvm_binop_vector(op, ty)?;
@@ -1479,6 +1491,7 @@ impl LlvmGenerator {
                         ctx.code.add(format!("{} = icmp {} i32 {}, {}", output_tmp, op_name, tmp, value));
                         self.gen_store_var(&output_tmp, &output_ll_sym, &output_ll_ty, ctx);
                     }
+
                     _ => weld_err!("Illegal type {} in BinOp", print_type(ty))?,
                 }
             }
@@ -1650,9 +1663,10 @@ impl LlvmGenerator {
             GetField { ref output, ref value, index } => {
                 let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
                 let (value_ll_ty, value_ll_sym) = self.llvm_type_and_name(func, value)?;
-                let struct_tmp = self.gen_load_var(&value_ll_sym, &value_ll_ty, ctx)?;
-                let res_tmp = ctx.var_ids.next();
-                ctx.code.add(format!("{} = extractvalue {} {}, {}", res_tmp, value_ll_ty, struct_tmp, index));
+                let ptr_tmp = ctx.var_ids.next();
+                ctx.code.add(format!("{} = getelementptr inbounds {}, {}* {}, i32 0, i32 {}",
+                    ptr_tmp, value_ll_ty, value_ll_ty, value_ll_sym, index));
+                let res_tmp = self.gen_load_var(&ptr_tmp, &output_ll_ty, ctx)?;
                 self.gen_store_var(&res_tmp, &output_ll_sym, &output_ll_ty, ctx);
             }
 
@@ -2540,10 +2554,10 @@ fn llvm_binop(op_kind: BinOpKind, ty: &Type) -> WeldResult<&'static str> {
                 Modulo if s.is_unsigned_integer() => Ok("urem"),
                 Modulo if s.is_float() => Ok("frem"),
 
-                Equal if s.is_integer() => Ok("icmp eq"),
+                Equal if s.is_integer() || s.is_bool() => Ok("icmp eq"),
                 Equal if s.is_float() => Ok("fcmp oeq"),
 
-                NotEqual if s.is_integer() => Ok("icmp ne"),
+                NotEqual if s.is_integer() || s.is_bool() => Ok("icmp ne"),
                 NotEqual if s.is_float() => Ok("fcmp one"),
 
                 LessThan if s.is_signed_integer() => Ok("icmp slt"),
@@ -2718,7 +2732,7 @@ fn predicate_only(code: &str) -> WeldResult<TypedExpr> {
     let mut e = parse_expr(code).unwrap();
     assert!(type_inference::infer_types(&mut e).is_ok());
     let mut typed_e = e.to_typed().unwrap();
-    
+
     let optstr = ["predicate"];
     let optpass = optstr.iter().map(|x| (*OPTIMIZATION_PASSES.get(x).unwrap()).clone()).collect();
 
