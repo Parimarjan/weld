@@ -179,7 +179,9 @@ class WeldObject(object):
         conf.set("weld.threads", weld_num_threads)
         conf.set("weld.memory.limit", "100000000000")
         err = cweld.WeldError()
+        start_run = time.time()
         weld_ret = module.run(conf, arg, err)
+        print('module.run took {} seconds', time.time() - start_run)
         if err.code() != 0:
             raise ValueError(("Error while running function,\n{}\n\n"
                               "Error message: {}").format(

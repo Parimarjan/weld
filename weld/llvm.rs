@@ -29,6 +29,9 @@ use super::util::LIB_WELD_RT;
 #[cfg(test)]
 use super::parser::*;
 
+extern crate time;
+use self::time::PreciseTime;
+
 static PRELUDE_CODE: &'static str = include_str!("resources/prelude.ll");
 
 /// The default grain size for the parallel runtime.
@@ -84,7 +87,10 @@ pub fn compile_program(program: &Program, opt_passes: &Vec<Pass>) -> WeldResult<
     debug!("LLVM program:\n{}\n", &llvm_code);
 
     debug!("Started compiling LLVM");
+    let start = PreciseTime::now();
     let module = try!(easy_ll::compile_module(&llvm_code, Some(LIB_WELD_RT)));
+    let end = PreciseTime::now();
+    println!("{} seconds for compile module.", start.to(end));
     debug!("Done compiling LLVM");
 
     debug!("Started runtime_init call");
