@@ -57,6 +57,37 @@ pub struct WeldOutputArgs {
 
 pub fn apply_opt_passes(expr: &mut TypedExpr, opt_passes: &Vec<Pass>) -> WeldResult<()> {
     for pass in opt_passes {
+
+        //if pass.pass_name() == "vectorize" {
+            //println!("skipping vectorize!");
+            //continue;
+        //}
+
+        //if pass.pass_name() == "inline-apply" {
+            //println!("inline-apply skip");
+            //continue;
+        //}
+        
+        //if pass.pass_name() == "inline-let" {
+            //println!("inline-let skip");
+            //continue;
+        //}
+
+        //if pass.pass_name() == "inline-zip" {
+            //println!("inline-zip skip");
+            //continue;
+        //}
+        
+        //if pass.pass_name() == "loop-fusion" {
+            //println!("loop-fusion skip");
+            //continue;
+        //}
+
+        //if pass.pass_name() == "infer-size" {
+            //println!("infer_size skip");
+            //continue
+        //}
+
         pass.transform(expr)?;
         debug!("After {} pass:\n{}", pass.pass_name(), print_typed_expr(&expr));
     }
