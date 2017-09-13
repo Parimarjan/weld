@@ -13,12 +13,17 @@ General Notes:
 Views based tests.
 
 TODO tests:
+    - Scalars with multi-dim arrays.
     - somehow test that for non-contig arrays, weld's loop goes over as much contiguous elements as
       it can.
     - scalar op view.
+    - a + other (view).
+    - Then update the view after. This should not affect a+other's result.
 '''
+# ND_SHAPES = [(5,3,4), (5,4), (6,4,7,3)]
+ND_SHAPES = [(5,3,4), (3,4)]
 
-def get_idxs(shape=None):
+def get_idx(shape):
     '''
     TODO: Need to generate idxs based on the shape parameter...
 
@@ -28,42 +33,47 @@ def get_idxs(shape=None):
         - different types of indexing styles (None, :, ... etc.)
         - different sizes, strides etc.
     '''
-    idxs = []
+    idx = []
 
-    idxs.append((slice(2,4,1),slice(1,3,1), slice(0,1,1)))
-    # For future, adding None and stuff.
-    # (slice(None,None,2),slice(3,None,None), slice(1,None,3))
+    for s in shape:
+        print('s: ', s)
+        start = random.randint(0, s-1)
+        stop = random.randint(start+1, s)
+        # step = random.randint(0, 3)
+        step = 1
+        idx.append(slice(start, stop, step))
 
-    return idxs
+
+    return tuple(idx)
 
 def test_views_non_contig_basic():
-    n, w = random_arrays((5,5,5), 'float32')
-    idxs = get_idxs()
+    shape = (5,5,5)
+    n, w = random_arrays(shape, 'float32')
+    idx = get_idx(shape)
 
-    for idx in idxs:
-        n2 = n[idx]
-        w2 = w[idx]
+    n2 = n[idx]
+    w2 = w[idx]
 
-        # useful test to add.
-        assert w2.shape == n2.shape
-        assert w2.flags == n2.flags
-        assert w2.strides == n2.strides
+    # useful test to add.
+    assert w2.shape == n2.shape
+    assert w2.flags == n2.flags
+    assert w2.strides == n2.strides
 
-        # test unary op.
-        n3 = np.log(n2)
-        w3 = np.log(w2)
-        w3 = w3.evaluate()
+    # test unary op.
+    n3 = np.log(n2)
+    w3 = np.log(w2)
+    w3 = w3.evaluate()
 
-        # test binary op.
+    # test binary op.
 
-        assert np.allclose(n3, w3)
-        assert np.allclose(n, w)
+    assert np.allclose(n3, w3)
+    assert np.allclose(n, w)
 
 def test_views_non_contig_inplace_unary():
-    n, w = random_arrays((5,5,5), 'float32')
-    idxs = get_idxs()
+    for shape in ND_SHAPES:
+        n, w = random_arrays(shape, 'float32')
+        idx = get_idx(shape)
 
-    for idx in idxs:
         n2 = n[idx]
         w2 = w[idx]
 
@@ -81,11 +91,10 @@ def test_views_non_contig_newarray_binary():
         - contig + non-contig
         - non-contig + non-contig
     '''
-    n, w = random_arrays((5,5,5), 'float32')
-    n2, w2 = random_arrays((5,5,5), 'float32')
-    idxs = get_idxs()
-
-    for idx in idxs:
+    for shape in ND_SHAPES:
+        n, w = random_arrays(shape, 'float32')
+        n2, w2 = random_arrays(shape, 'float32')
+        idx = get_idx(shape)
         nv1 = n[idx]
         wv1 = w[idx]
         nv2 = n2[idx]
@@ -114,11 +123,12 @@ def test_views_non_contig_inplace_binary1():
     Note: these don't test for performance, for instance, if the non-contig array is being
     evaluated with the max contiguity etc.
     '''
-    n, w = random_arrays((5,5,5), 'float32')
-    n2, w2 = random_arrays((5,5,5), 'float32')
-    idxs = get_idxs()
+    for shape in ND_SHAPES:
+        n, w = random_arrays(shape, 'float32')
+        n2, w2 = random_arrays(shape, 'float32')
+        idx = get_idx(shape)
+        print('idx : ', idx)
 
-    for idx in idxs:
         nv1 = n[idx]
         wv1 = w[idx]
         nv2 = n2[idx]
@@ -150,6 +160,7 @@ def test_views_non_contig_inplace_binary1():
             assert np.allclose(n2, w2)
 
             print('***********ENDED op {} ************'.format(op))
+        print('***********ENDED shape {} ************'.format(shape))
 
 def test_views_non_contig_inplace_binary2():
     '''
@@ -167,28 +178,69 @@ def test_views_non_contig_inplace_binary2():
     based on current implementation.
     TODO: write the test.
     '''
-    n, w = random_arrays((5,5,5), 'float32')
-    n2, w2 = random_arrays((5,5,5), 'float32')
-    idxs = get_idxs()
-
-    for idx in idxs:
+    for shape in ND_SHAPES:
+        n, w = random_arrays(shape, 'float32')
+        n2, w2 = random_arrays(shape, 'float32')
+        idx = get_idx(shape)
+        # TODO: write test.
         pass
 
-def test_views_non_contig_inplace_binary_mess():
+def test_views_non_contig_inplace_other_updates():
     '''
-    Just mixes a bunch of operations on top of the previous setup.
     '''
-    n, w = random_arrays((5,5,5), 'float32')
-    n2, w2 = random_arrays((5,5,5), 'float32')
-    idxs = get_idxs()
+    for shape in ND_SHAPES:
+        n, w = random_arrays(shape, 'float32')
+        n2, w2 = random_arrays(shape, 'float32')
+        idx = get_idx(shape)
 
-    for idx in idxs:
         nv1 = n[idx]
         wv1 = w[idx]
         nv2 = n2[idx]
         wv2 = w2[idx]
 
-        # TODO: Create some messy ops here.
+        # update other from before.
+        # important: we need to make sure the case with the second array having some operations
+        # stored in it is dealt with.
+        wv2 = np.sqrt(wv2, out=wv2)
+        nv2 = np.sqrt(nv2, out=nv2)
+        # wv2 = wv2.evaluate()
+
+        op = np.subtract
+        nv1 = op(nv1, nv2, out=nv1)
+        wv1 = op(wv1, wv2, out=wv1)
+
+        nv2 = np.log(nv2, out=nv2)
+        wv2 = np.log(wv2, out=wv2)
+        wv2 = wv2.evaluate()
+
+        n2 = np.sqrt(n2, out=n2)
+        w2 = np.sqrt(w2, out=w2)
+
+        # when we evaluate a weldarray_view, the view properties (parent array etc) must be preserved in the
+        # returned array.
+        wv1 = wv1.evaluate()
+
+        assert np.allclose(nv2, wv2)
+        assert np.allclose(nv1, wv1)
+        assert np.allclose(n, w)
+        assert np.allclose(n2, w2)
+
+        print('***********ENDED shape {} ************'.format(shape))
+
+
+def test_views_non_contig_inplace_binary_mess():
+    '''
+    Just mixes a bunch of operations on top of the previous setup.
+    '''
+    for shape in ND_SHAPES:
+        n, w = random_arrays(shape, 'float32')
+        n2, w2 = random_arrays(shape, 'float32')
+        idx = get_idx(shape)
+        nv1 = n[idx]
+        wv1 = w[idx]
+        nv2 = n2[idx]
+        wv2 = w2[idx]
+        # TODO: write test.
 
 '''
 General Tests.

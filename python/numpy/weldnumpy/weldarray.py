@@ -3,10 +3,6 @@ from weld.encoders import NumpyArrayEncoder, NumpyArrayDecoder
 import numpy as np
 from weldnumpy import *
 
-DEBUG = False
-# TODO: get rid of passing around weldarray(..., verbose= ) flags and put that in the __new__ of
-# weldarrays.
-
 assert np.version.version >= 1.13, 'numpy version {} not supported'.format(np.version.version)
 
 class weldarray(np.ndarray):
@@ -25,6 +21,8 @@ class weldarray(np.ndarray):
     def __new__(cls, input_array, verbose=True, *args, **kwargs):
         '''
         @input_array: original ndarray from which the new array is derived.
+        TODO: get rid of passing around weldarray(..., verbose= ) flags and put that in the __new__ of
+        weldarrays.
         '''
         # TODO: Add support for lists / ints.
         assert isinstance(input_array, np.ndarray), 'only support ndarrays'
@@ -44,8 +42,7 @@ class weldarray(np.ndarray):
 
     def __array_finalize__(self, obj):
         '''
-        TODO: decide what to do here. Some situations, like arr.T seem to require action here.
-        TODO2: Might need to recompute segments etc. here.
+        TODO: need to recompute segments etc. here after reshape, transpose...
         '''
         pass
 
@@ -65,46 +62,65 @@ class weldarray(np.ndarray):
 
     def _get_segments(self, idx):
         '''
-        FIXME: This is a hardcoded version for 3d arrays!! Need to generalize this to n-dimensions.
-        @idx: tuple of slices representing a multi-dimensional view into self. Since sometimes we
-        also need segments for a contiguous array, idx could represent the full array too.
+        @idx: tuple of slices representing a multi-dimensional view into self.
         FIXME: in the contiguous case perhaps there is a more optimized way to get the segments.
+        FIXME: Should we be sorting these?
 
         @ret: list of segment objects that represent the start-stop-step of a segment of the
         view signified by idx.
         '''
         # FIXME: deal with non-tuple (basically slice - 1d or N-d) case.
         assert isinstance(idx, tuple), 'only support tuples right now'
+        assert len(idx) == len(self.shape)
 
-        # TODO: Should we be sorting these?
-        count = 0
-        # Just for sanity checking.
-        flat = self.reshape(self.size)
-        assert addr(flat) == addr(self), 'should be same'
+        # generate the code for looping over idx to generate the segments based on the given
+        # idx...seems a little convoluted but its fairly straigthforward code, and exec should be
+        # fairly safe here.
+        for_template ='for {iter_var} in range(idx[{axis}].start,' \
+                'idx[{axis}].stop,idx[{axis}].step):\n'
+
+        # for the innermost loop, we should just have a start-stop-step system
+        # vars needed: {last_axis}, {segment_start}
+        inner_loop_template = 'segment_start = {segment_start}\n' \
+                              '{indentation}start = (segment_start + idx[{last_axis}].start*' \
+                              'self.strides[{last_axis}])/ self.itemsize\n' \
+                              '{indentation}stop =  (segment_start + idx[{last_axis}].stop*' \
+                              'self.strides[{last_axis}]) / self.itemsize\n' \
+                              '{indentation}step = idx[{last_axis}].step\n' \
+                              '{indentation}starts.append(start)\n' \
+                              '{indentation}stops.append(stop)\n' \
+                              '{indentation}steps.append(step)\n'
+        segment_start_template = '{iter_var}*self.strides[{axis}]'
 
         starts = []
         stops = []
         steps = []
-        for i in range(idx[0].start, idx[0].stop, idx[0].step):
-            for j in range(idx[1].start, idx[1].stop, idx[1].step):
-                # for the innermost loop, we should just have a start-stop-step system
-                segment_start = i*self.strides[0] + j*self.strides[1]
-                start = (segment_start + idx[2].start*self.strides[2]) / self.itemsize
-                stop =  (segment_start + idx[2].stop*self.strides[2]) / self.itemsize
-                step = idx[2].step
-                starts.append(start)
-                stops.append(stop)
-                steps.append(step)
-                # TODO: remove this in final version...keeping it around for sanity check.
-                for k in range(idx[2].start, idx[2].stop, idx[2].step):
-                    # print('{}, {}, {}'.format(i, j, k))
-                    # need to divide this by itemsize.
-                    base_idx = (i*self.strides[0] + j*self.strides[1] + k*self.strides[2])/self.itemsize
-                    assert self.view(np.ndarray)[i][j][k] == flat.view(np.ndarray)[base_idx], \
-                    'flat array idx doesnt work'
-                    count += 1
+        code = ''
+        segment_start = ''
+        # XXX: hack to get indentations right, maybe there is a nicer way.
+        indentation = ''
 
-        assert count == self.view(np.ndarray)[idx].size, 'view sanity check failed'
+        for i, _ in enumerate(idx):
+            if not i+1 == len(idx):
+                # update for's
+                code += for_template.format(iter_var = 'i' + str(i),
+                                            axis = i)
+                # add indentation.
+                indentation += '  '
+                # so indentation is only added after the first for loop etc.
+                code += indentation
+                segment_start += segment_start_template.format(iter_var = 'i' + str(i),
+                                                               axis = i)
+                # don't add + in the final loop.
+                if not i+2 == len(idx):
+                    segment_start += ' + '
+            else:
+                # inner loop
+                code += inner_loop_template.format(last_axis = i,
+                                                   segment_start = segment_start,
+                                                   indentation = indentation)
+        # exec the generated code.
+        exec(code)
         segments = []
         for i, start in enumerate(starts):
             s = segment(starts[i], stops[i], steps[i])
@@ -114,7 +130,6 @@ class weldarray(np.ndarray):
 
     def __getitem__(self, idx):
         '''
-        TODO: Multidimensional support. Will make it a lot more complicated.
         arr[...] type of indexing.
         Deal with the following three scenarios:
             - idx is a scalar
@@ -136,14 +151,12 @@ class weldarray(np.ndarray):
                     3. Create the arr._weldarray_view class for the view which stores pointers to
                     base_array, parent_array, and start/end/strides/idx values.
         '''
-        if DEBUG:
-            print('in getitem, idx = ', idx)
         if isinstance(idx, slice):
             # TODO: Need to check for multidimensional views here.
             ret = self.view(np.ndarray).__getitem__(idx)
 
             # TODO: The way we treat views now, views don't need their own weldobj - just the
-            # weldview object. Could be a minor optimization to not create new weldarray's.
+            # weldview object. Get rid of the welobj's entirely - to enforce protocol.
             ret = weldarray(ret, verbose=self._verbose)
             # check if ret really is a view of arr. If not, then don't need to make changes to
             # ret's weldarray_view etc.
@@ -189,6 +202,8 @@ class weldarray(np.ndarray):
                 base_array = self._weldarray_view.base_array
                 par_start = self._weldarray_view.start
 
+            # TODO: Maybe this should be done only when required - ie., in evaluation, rather than
+            # whenever a new view is created.
             segments = self._get_segments(idx)
             # ret is a view, initialize its weldview.
             ret._weldarray_view = weldarray_view(base_array, self, idx)
@@ -224,7 +239,8 @@ class weldarray(np.ndarray):
                 - int
 
         When self is a view, update parent instead.
-        TODO: This is work in progress, although it does seem to be mostly functionally correct for now.
+        XXX: Should be a pretty inefficient function as weld doesn't have a good way to update
+        single items in place. Right now we just loop over the whole array.
         '''
         def _update_single_entry(arr, index, val):
             '''
@@ -353,8 +369,8 @@ class weldarray(np.ndarray):
         Overwrites the action of weld supported functions and for others,
         pass on to numpy's implementation.
         @ufunc: np op, like np.add etc.
-        TODO: support other type of methods?
         @method: call, __reduce__,
+        TODO: support other type of methods like __accumulate__ etc.
         '''
         input_args = [inp for inp in inputs]
         outputs = kwargs.pop('out', None)
@@ -433,7 +449,7 @@ class weldarray(np.ndarray):
         performed only along a certain axis.
         We force evaluation at the end of the reduction - weird errors if we don't. This seems
         safer anyway.
-        np supports reduce only for binary ops.
+        Note: np supports reduce only for binary ops.
         '''
         # input_args[0] must be self so it can be ignored.
         assert len(input_args) == 1
@@ -460,8 +476,8 @@ class weldarray(np.ndarray):
         if self._weldarray_view:
             idx = self._weldarray_view.idx
             wa = weldarray(self._weldarray_view.parent._eval()[idx], verbose = self._verbose)
-            # FIXE: is this assumption valid in all cases?
-            # Assumption: These shouldn't change.
+            # FIXME: is this assumption valid in all cases?
+            # Assumption: These shouldn't change after evaluation.
             wa._weldarray_view = self._weldarray_view
             wa._segments = self._segments
             return wa
@@ -483,7 +499,7 @@ class weldarray(np.ndarray):
         # This check has to happen before the caching - as the weldobj/code for views is never updated.
         if self._weldarray_view:
             # _eval parent and return appropriate idx.
-            # TODO: Clearly more efficient to _eval the base array as the parent would eventually have to do
+            # XXX: more efficient to _eval the base array as the parent would eventually have to do
             # it - but this makes it more convenient to deal with different indexing strategies.
             arr = self._weldarray_view.parent._eval()
             # just indexing into a ndarray
@@ -491,8 +507,6 @@ class weldarray(np.ndarray):
 
         # Caching
         if self.name == self.weldobj.weld_code:
-            if DEBUG:
-                print('cached!')
             # No new ops have been registered. Avoid creating unneccessary new copies with
             # weldobj.evaluate()
             return self.weldobj.context[self.name]
@@ -500,9 +514,6 @@ class weldarray(np.ndarray):
         if restype is None:
             # use default type for all weldarray operations
             restype = WeldVec(self._weld_type)
-
-        if DEBUG:
-            print('code: ', self.weldobj.weld_code)
 
         arr = self.weldobj.evaluate(restype, verbose=self._verbose)
         # FIXME: is it enough to just update these values?
@@ -512,8 +523,6 @@ class weldarray(np.ndarray):
         # Now that the evaluation is done - create new weldobject for self,
         # initalized from the returned arr.
         self._gen_weldobj(arr)
-        if DEBUG:
-            print('returned arr: ', arr)
         return arr
 
     def _get_result(self):
@@ -529,8 +538,6 @@ class weldarray(np.ndarray):
             # must convert it first into a contiguous array.
             if not result.flags.contiguous:
                 result = np.ascontiguousarray(result)
-                if DEBUG:
-                    print('!!!!!made contiguous array in _get_result!!!!')
 
             assert result.flags.contiguous, 'must be cont'
             result = weldarray(result, verbose=self._verbose)
@@ -607,10 +614,6 @@ class weldarray(np.ndarray):
                                                       end   = end,
                                                       update_str = update_str)
 
-        if DEBUG:
-            print('in _update_range: weldobj code is: ')
-            print(self.weldobj.weld_code)
-
     def _update_ranges(self, segments, update_strs):
         '''
         TODO: explain.
@@ -636,26 +639,26 @@ class weldarray(np.ndarray):
         # class or something.
         def update_views_binary(result, other, binop):
             '''
-            @result: weldarray that is being updated - always have a weldarray view.
-            @other: weldarray or scalar. (result binop other)
+            @result: weldarray that is being updated.
+            @other: weldarray or scalar.
+            Both of these could be contiguous or non-contiguous.
+
             @binop: str, operation to perform.
 
-            FIXME: the common indexing pattern for parent/child in _update_view might be too expensive
-            (uses if statements (unneccessary checks when updating child) and wouldn't be ideal to
-            update a large parent).
+            Currenly, it does result binop other -> the order is important for non-commutative
+            operations.
 
-            FIXME: Need to make this generalized to n-dimensional cases + other can be non-contig as
-            well which messes up some things...
-
-            TODO: could there be optimizations choosing which one to loop over?
+            FIXME: there might be some optimizations with update_ranges if one of the arrays is
+            contiguous, but right now just generate segments for it and deal with it as if they
+            were both non-contiguous.
             '''
             # different templates being used.
             update_str_template = 'e{binop}{e2}'
             # lookup_index here refers to the index in array 2.
             e2_template = 'lookup({arr2},{lookup_ind})'
-            # here, 'i' is the index in array 1 (over which weld will be looping)
-            # TODO: explain more.
-            # TODO: is L always right or can for loop indices be i32 as well?
+            # here, 'i' is the index in array 1 (over which weld will be looping). The variable can
+            # be called anything of course, but this code is generated by us in update_ranges - and we use 'i'
+            # there.
             lookup_ind_template = '{start2}L + (i - {start1}L) / {step1}L * {step2}L'
 
             def get_update_strs(segments, other_segments, arr2):
@@ -663,6 +666,10 @@ class weldarray(np.ndarray):
                 @segments: list of segment obj for the array being updated.
                 @other._segments: list of segment obj for the other array.
                 @arr2: base array for the other object - into which the lookups will be performed.
+
+                The update_str for each segment has to be different if one of the arrays is
+                non-contiguous because we wouldn't know the correct lookup_ind into the
+                non-contiguous array.
                 '''
                 update_strs = []
                 for i, segment in enumerate(segments):
@@ -670,13 +677,8 @@ class weldarray(np.ndarray):
                                                             start1 = segment.start,
                                                             step1 = segment.step,
                                                             step2 = other_segments[i].step)
-
-                    if DEBUG:
-                        print('lookup ind = ', lookup_ind)
                     # Note: All the indices in other's views will be wrt to the base array of other.
                     e2 = e2_template.format(arr2 = arr2, lookup_ind = lookup_ind)
-                    if DEBUG:
-                        print('e2 = ', e2)
                     update_str = update_str_template.format(e2 = e2, binop = binop)
                     update_strs.append(update_str)
 
@@ -684,7 +686,16 @@ class weldarray(np.ndarray):
 
             def update_segments(segments, other_segments, base_array, other_base_array):
                 '''
-                TODO: explain args.
+                @segments: segments of the array being updated.
+                @other_segments: segments of the second operand.
+                Note: Either of these arrays may have been contiguous, but as long as one of them
+                was non-contiguous, then we need segments in this format to perform the updates.
+
+                @base_array: result's base array. If result was a view, it would be the parent,
+                otherwise will be result itself.
+                @other_base_array: Same as base_array, but for other.
+
+                Updates the weld code for base array to reflect the binary op.
                 '''
                 assert len(segments) == len(other_segments), 'should be same'
                 # Update the base array to include the context from other
@@ -694,17 +705,28 @@ class weldarray(np.ndarray):
                                               other_base_array.weldobj.weld_code)
                 base_array._update_ranges(result._segments, update_strs)
 
+            def _get_full_idx(shape):
+                '''
+                So we can generate segments for a contiguous array...
+                XXX: can also use something like array[:], but right now the _get_segments function
+                requires explicit slices.
+                '''
+                idx = []
+                for s in shape:
+                    idx.append(slice(0, s, 1))
+                return tuple(idx)
+
             def get_base_segments(arr):
                 '''
-                TODO: explain args.
+                If arr is contiguous, then first generates segments for it.
+                @ret: base_array: the array which will be used.
+                @ret2: segments: The segments in the base array which would be used.
                 '''
                 if not arr._weldarray_view:
                     # arr is a contiguous array. Might not have segments yet.
                     if not arr._segments:
-                        # FIXME: Need to generalize this to non-3d cases.
-                        tmp_idx = ((slice(0,arr.shape[0],1), slice(0,arr.shape[1],1),
-                            slice(0,arr.shape[2],1)))
-                        arr._segments = arr._get_segments(tmp_idx)
+                        full_idx = _get_full_idx(arr.shape)
+                        arr._segments = arr._get_segments(full_idx)
                     base_array = arr
                 else:
                     base_array = arr._weldarray_view.base_array
@@ -714,9 +736,7 @@ class weldarray(np.ndarray):
             assert isinstance(result, weldarray), 'must be a weldarray'
 
             if not hasattr(other, "__len__"):
-                # other is a scalar! deal with this first itself as other cases are all
-                # generalized.
-                # FIXME: Test this + Fix this!
+                # other is a scalar!
                 e2 = str(other) + DTYPE_SUFFIXES[result._weld_type.__str__()]
                 update_strs = [update_str_template.format(e2 = e2, binop=binop)]*len(v.segments)
                 result._weldarray_view.base_array._update_ranges(result._segments, update_strs)
@@ -727,47 +747,26 @@ class weldarray(np.ndarray):
             # Handle the segments stuff first, and then have the same code to deal with all cases.
             base_array, segments = get_base_segments(result)
             other_base_array, other_segments = get_base_segments(other)
+            # registers the binary op.
             update_segments(segments, other_segments, base_array, other_base_array)
 
-            # Mixed 1-d code.
-            # FIXME: Update this 1d case with segments
-            # Old code: This is the case when both are essentially contiguous but still a view...
-            # # lookup_ind = 'i-{st}'.format(st=v.start)
-            # # e2 = 'lookup({arr2},{i}L)'.format(arr2 = other.weldobj.weld_code, i = lookup_ind)
-            # v.base_array._update_ranges(result._segments, update_strs)
-            # FIXME: generalize this 1-d code
-            # update_str = update_str_template.format(e2 = e2, binop=binop)
-            # v.base_array._update_range(v.start, v.end, update_str)
-
-        # if self, result, or other is not contiguous (is a view), then will use the update_range method.
+        # if any of the arrays is not contiguous (e.g., view), then will use the update_range method.
         views = False
-        # TODO: decompose.
         # First deal with other and convert to weldarray if neccessary.
         if isinstance(other, weldarray):
             if other._weldarray_view:
                 views = True
-                # we need to evaluate other first because any ops on other are actually stored in
-                # its parent.
-                idx = other._weldarray_view.idx
-                # FIXME: find a better way to do this
-                # order of creating weldarray and view can create subtle differences - similar to
-                # what is happening in evaluate().
-                # Assumption: old view will not be changed by _eval.
-                other_new = weldarray(other._weldarray_view.parent._eval()[idx],verbose=self._verbose)
-                other_new._weldarray_view = other._weldarray_view
-                other_new.segments = other._segments
-
-                # Another option that should work here is: np_array -> weldarray -> view
-                # weldarray(other._weldarray_view.parent.eval())[idx]
-                # This updates the _weldarray_view of the newly created weldarray.
-                # But this is not consistent with what we are doing in evaluate().
+                # XXX: need to think more about related edge cases here...
+                # we will only be accessing other's parent for doing the binary op - so evaluate
+                # it.
+                other._weldarray_view.parent._eval()
 
         elif isinstance(other, np.ndarray):
-            # TODO: could optimize this by skipping conversion to weldarray.
-            # turn it into weldarray - for convenience, as this reduces to the case of other being a weldarray.
-            # FIXME: If other is a non-contig ndarray, then for now this should not happen, but we
-            # should be able to support it too...
+            # TODO: If other is a non-contig ndarray, then for now we pass it on to numpy's
+            # implementation, but we should be able to support it too...
             assert other.flags.contiguous, 'in binary op, np array should be contig'
+            # turn it into weldarray - for convenience, as this reduces to the case of other being
+            # a weldarray.
             other = weldarray(other)
 
         # Now deal with self / result - this will determine the output array.
@@ -776,24 +775,26 @@ class weldarray(np.ndarray):
             views = True
 
         if result is None:
-            # New array being created.
+            # New array being created - if result is contiguous, no new memory will be allocated.
             result = self._get_result()
         else:
-            # FIXME: Need to support this...but who even uses such a case...
+            # FIXME: Need to support this...but doesn't seem the most critical use case.
             assert (result.weldobj._obj_id == self.weldobj._obj_id), \
                 'For binary ops, output array must be the same as the first input'
 
+        # Dealing with in place updates here. This is the same for other being scalar or weldarray.
+        # for a view, we always update only the parent array.
         if views:
-            # Dealing with in place updates here. This is the same for other being scalar or weldarray.
-            # for a view, we always update only the parent array.
             update_views_binary(result, other, binop)
             return result
 
-        # Both self, and other, must have been contiguous arrays.
         # scalars (i32, i64, f32, f64...)
         if not hasattr(other, "__len__"):
             return self._scalar_binary_op(other, binop, result)
 
+        # Both self, and other, must have been contiguous arrays. For multi-dimensional cases,
+        # since they also have the same shape, it is guaranteed that these must have the exact same
+        # layout in memory - so we can essentially treat them as 1d arrays.
         result.weldobj.update(other.weldobj)
         # @arr{i}: latest array based on the ops registered on operand{i}. {{
         # is used for escaping { for format.
