@@ -30,8 +30,7 @@ class NumpyArrayEncoder(WeldObjectEncoder):
         """
         Checks whether this NumPy array is supported by Weld.
         """
-        assert isinstance(obj, np.ndarray)
-        assert obj.ndim == 1
+        pass
 
     def encode(self, obj):
         self._check(obj)
@@ -39,7 +38,8 @@ class NumpyArrayEncoder(WeldObjectEncoder):
         c_class = WeldVec(elem_type).cTypeClass
         elem_class = elem_type.cTypeClass
         ptr = obj.ctypes.data_as(POINTER(elem_class))
-        size = ctypes.c_int64(len(obj))
+        # need to change this to size for the multi-dimensional case
+        size = ctypes.c_int64(obj.size)
         return c_class(ptr=ptr, size=size)
 
     def pyToWeldType(self, obj):

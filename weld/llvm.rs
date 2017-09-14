@@ -127,7 +127,7 @@ pub fn compile_program(program: &Program, opt_passes: &Vec<Pass>, llvm_opt_level
         Some(WELD_INLINE_LIB)));
     debug!("Done compiling LLVM");
     let end = PreciseTime::now();
-    println!("{} seconds for compile module.", start.to(end));
+    //println!("{} seconds for compile module.", start.to(end));
 
     debug!("Started runtime_init call");
     module.run_named("runtime_init", 0).unwrap();
