@@ -200,12 +200,19 @@ if args.inplace_loop:
 
 if args.random_computation1:
     print("*********random computation1 ***********")
-    random_computation1(wn)
-    random_computation1(np)
+    res1 = random_computation1(wn)
+    res2 = random_computation1(np)
+    print(res1[0])
+    print(res2[0])
+    assert np.allclose(res1, res2)
     print("***********end***********")
 
 if args.blackscholes:
     print("*********black scholes***********")
-    blackscholes(True)
-    blackscholes(False)
+    np_res1, np_res2 = blackscholes(True)
+    w_res1, w_res2 = blackscholes(False)
+    print(np_res1[0])
+    print(w_res1[0])
+    assert np.allclose(np_res1, w_res1)
+
     print("***********end***********")
