@@ -1,8 +1,8 @@
-import numpy as np
 import py.test
 import random
 from weldnumpy import weldarray, erf as welderf
 import scipy.special as ss
+import numpy as np
 
 '''
 TODO0: Decompose heavily repeated stuff, like the assert blocks and so on.
@@ -39,10 +39,15 @@ def random_arrays(num, dtype):
     # np.random does not support specifying dtype, so this is a weird
     # way to support both float/int random numbers
     test = np.zeros((num), dtype=dtype)
+    print('after zeros: ', type(test))
+    print('gonna call random!')
     test[:] = np.random.randn(*test.shape)
+    print(type(test))
+
     test = np.abs(test)
     # at least add 1 so no 0's (o.w. divide errors)
-    random_add = np.random.randint(1, high=10, size=test.shape)
+    random_add = rand2.randint(1, high=10, size=test.shape)
+    # random_add = np.random.randint(1, high=10, size=test.shape)
     test = test + random_add
     test = test.astype(dtype)
 
@@ -74,7 +79,12 @@ def test_unary_elemwise():
             if "int" in dtype:
                 continue
             np_test, w = random_arrays(NUM_ELS, dtype)
+            print(type(np_test))
+            print(type(w))
+
             w2 = op(w)
+            print('w2: ', w2)
+
             np_result = op(np_test)
             w2_eval = w2.evaluate()
 
@@ -995,3 +1005,4 @@ def test_erf():
         # __array_ufunc__.
         # assert np.array_equal(w2_eval, n2)
 
+test_unary_elemwise()

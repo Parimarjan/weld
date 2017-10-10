@@ -99,8 +99,8 @@ class weldarray(np.ndarray):
                     base_array, parent_array, and start/end/strides/idx values.
         '''
         # Need to cast it as ndarray view before calling ndarray's __getitem__ implementation.
-        ret = self.view(np.ndarray).__getitem__(idx)
         if isinstance(idx, slice):
+            ret = self.view(np.ndarray).__getitem__(idx)
             # TODO: The way we treat views now, views don't need their own weldobj - just the
             # weldview object. Could be a minor optimization.
             ret = weldarray(ret, verbose=self._verbose)
