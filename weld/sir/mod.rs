@@ -276,6 +276,36 @@ impl StatementTracker {
         map.insert(kind, named_sym.clone());
     }
 }
+/// Helper method for gen_expr. Used to process the fields of ParallelForIter, like "start",
+/// "shape" etc. Returns None, or the Symbol associated with the field. It also resets values for
+/// cur_func, and cur_block.
+fn get_iter_sym(opt : &Option<Box<Expr<Type>>>,
+            prog: &mut SirProgram,
+            cur_func: &mut FunctionId,
+            cur_block: &mut BasicBlockId,
+            tracker: &mut StatementTracker,
+            multithreaded: bool,
+            body_func: FunctionId) -> WeldResult<Option<Symbol>> {
+    if opt.is_some() {
+        let opt_expr = match *opt {
+            Some(ref e) => e,
+            _ => weld_err!("Can't reach this")?,
+        };
+        let opt_res = gen_expr(&opt_expr, prog, *cur_func, *cur_block, tracker, multithreaded)?;
+        /* TODO pari: Originally, in gen_expr cur_func, and cur_block were also being set - but this
+        does not seem to have any effect. Could potentially remove this if it wasn't needed? All
+        the tests seem to pass fine without it as well.
+        */
+        *cur_func = opt_res.0;
+        *cur_block = opt_res.1;
+        prog.funcs[body_func]
+            .params
+            .insert(opt_res.2.clone(), opt_expr.ty.clone());
+        return Ok(Some(opt_res.2));
+    } else {
+        return Ok(None);
+    };
+}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ParallelForIter {
@@ -284,6 +314,8 @@ pub struct ParallelForIter {
     pub end: Option<Symbol>,
     pub stride: Option<Symbol>,
     pub kind: IterKind,
+    pub shapes: Option<Symbol>,
+    pub strides: Option<Symbol>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -342,6 +374,12 @@ impl Terminator {
                         vars.push(sym);
                     }
                     if let Some(ref sym) = iter.stride {
+                        vars.push(sym);
+                    }
+                    if let Some(ref sym) = iter.shapes {
+                        vars.push(sym);
+                    }
+                    if let Some(ref sym) = iter.strides {
                         vars.push(sym);
                     }
                 }
@@ -578,10 +616,20 @@ impl fmt::Display for ParallelForIter {
         let iterkind = match self.kind {
             IterKind::ScalarIter => "iter",
             IterKind::SimdIter => "simditer",
-            IterKind::FringeIter => "fringeiter"
+            IterKind::FringeIter => "fringeiter",
+            IterKind::NdIter => "nditer"
         };
-
-        if self.start.is_some() {
+        if self.shapes.is_some() {
+            /* NdIter. Note: end or stride aren't important here, so skpping those.
+             * */
+            write!(f,
+                   "{}({}, {}, {}, {})",
+                   iterkind,
+                   self.data,
+                   self.start.clone().unwrap(),
+                   self.shapes.clone().unwrap(),
+                   self.strides.clone().unwrap())
+        } else if self.start.is_some() {
             write!(f,
                    "{}({}, {}, {}, {})",
                    iterkind,
@@ -682,7 +730,13 @@ fn sir_param_correction_helper(prog: &mut SirProgram,
             ParallelFor(ref pf) => {
                 for iter in pf.data.iter() {
                     vars.push(iter.data.clone());
-                    if iter.start.is_some() {
+                    if iter.shapes.is_some() {
+                        vars.push(iter.start.clone().unwrap());
+                        vars.push(iter.end.clone().unwrap());
+                        vars.push(iter.stride.clone().unwrap());
+                        vars.push(iter.shapes.clone().unwrap());
+                        vars.push(iter.strides.clone().unwrap());
+                    } else if iter.start.is_some() {
                         vars.push(iter.start.clone().unwrap());
                         vars.push(iter.end.clone().unwrap());
                         vars.push(iter.stride.clone().unwrap());
@@ -1221,58 +1275,25 @@ fn gen_expr(expr: &TypedExpr,
                     prog.funcs[body_func]
                         .params
                         .insert(data_res.2.clone(), iter.data.ty.clone());
-                    let start_sym = if iter.start.is_some() {
-                        // TODO is there a cleaner way to do this?
-                        let start_expr = match iter.start {
-                            Some(ref e) => e,
-                            _ => weld_err!("Can't reach this")?,
-                        };
-                        let start_res = gen_expr(&start_expr, prog, cur_func, cur_block, tracker, multithreaded)?;
-                        cur_func = start_res.0;
-                        cur_block = start_res.1;
-                        prog.funcs[body_func]
-                            .params
-                            .insert(start_res.2.clone(), start_expr.ty.clone());
-                        Some(start_res.2)
-                    } else {
-                        None
-                    };
-                    let end_sym = if iter.end.is_some() {
-                        let end_expr = match iter.end {
-                            Some(ref e) => e,
-                            _ => weld_err!("Can't reach this")?,
-                        };
-                        let end_res = gen_expr(&end_expr, prog, cur_func, cur_block, tracker, multithreaded)?;
-                        cur_func = end_res.0;
-                        cur_block = end_res.1;
-                        prog.funcs[body_func]
-                            .params
-                            .insert(end_res.2.clone(), end_expr.ty.clone());
-                        Some(end_res.2)
-                    } else {
-                        None
-                    };
-                    let stride_sym = if iter.stride.is_some() {
-                        let stride_expr = match iter.stride {
-                            Some(ref e) => e,
-                            _ => weld_err!("Can't reach this")?,
-                        };
-                        let stride_res = gen_expr(&stride_expr, prog, cur_func, cur_block, tracker, multithreaded)?;
-                        cur_func = stride_res.0;
-                        cur_block = stride_res.1;
-                        prog.funcs[body_func]
-                            .params
-                            .insert(stride_res.2.clone(), stride_expr.ty.clone());
-                        Some(stride_res.2)
-                    } else {
-                        None
-                    };
+                    let start_sym = try!(get_iter_sym(&iter.start, prog, &mut cur_func, &mut cur_block, 
+                                                      tracker, multithreaded, body_func));
+                    let end_sym = try!(get_iter_sym(&iter.end, prog, &mut cur_func, &mut cur_block, 
+                                                    tracker, multithreaded, body_func));
+                    let stride_sym = try!(get_iter_sym(&iter.stride, prog, &mut cur_func, &mut cur_block, 
+                                                       tracker, multithreaded, body_func));
+                    let shapes_sym = try!(get_iter_sym(&iter.shapes, prog, &mut cur_func, &mut cur_block, 
+                                                       tracker, multithreaded, body_func));
+                    let strides_sym = try!(get_iter_sym(&iter.strides, prog, &mut cur_func, &mut cur_block, 
+                                                        tracker, multithreaded, body_func));
+
                     pf_iters.push(ParallelForIter {
                                       data: data_res.2,
                                       start: start_sym,
                                       end: end_sym,
                                       stride: stride_sym,
                                       kind: iter.kind.clone(),
+                                      shapes: shapes_sym,
+                                      strides: strides_sym,
                                   });
                 }
                 let (body_end_func, body_end_block, _) =
