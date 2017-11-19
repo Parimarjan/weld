@@ -168,6 +168,19 @@ fn infer_locally(expr: &mut PartialExpr, env: &mut TypeMap) -> WeldResult<bool> 
                 _ => return weld_err!("Internal error: {} called on non-scalar or non-float", op),
             }
         }
+        
+        // FIXME: pari. do we need to push complete type for power too? j
+        Powi { 
+            ref mut value,
+            ..
+        } => {
+            match value.ty {
+                Scalar(F32) => push_complete_type(&mut expr.ty, Scalar(F32), "Powi"),
+                Scalar(F64) => push_complete_type(&mut expr.ty, Scalar(F64), "Powi"),
+                Unknown => push_type(&mut expr.ty, &value.ty, "Powi"),
+                _ => return weld_err!("Internal error: powi called on non-scalar or non-float"),
+            }
+        }
 
         Cast { kind, .. } => Ok(try!(push_complete_type(&mut expr.ty, Scalar(kind), "Cast"))),
 
@@ -461,6 +474,17 @@ fn infer_locally(expr: &mut PartialExpr, env: &mut TypeMap) -> WeldResult<bool> 
                         match **i {
                             Some(ref mut e) => {
                                 changed |= try!(push_complete_type(&mut e.ty, Scalar(I64), "iter"))
+                            }
+                            None => return weld_err!("Impossible"),
+                        };
+                    }
+                }
+                /* For Nd-Iter */
+                if iter.shapes.is_some() {
+                    for i in [&mut iter.shapes, &mut iter.strides].iter_mut() {
+                        match **i {
+                            Some(ref mut e) => {
+                                changed |= try!(push_complete_type(&mut e.ty, Vector(Box::new(Scalar(I64))), "iter"))
                             }
                             None => return weld_err!("Impossible"),
                         };

@@ -46,6 +46,7 @@ pub enum Token {
     TScalarIter,
     TSimdIter,
     TFringeIter,
+    TNdIter,
     TLen,
     TLookup,
     TKeyExists,
@@ -58,6 +59,7 @@ pub enum Token {
     TLog,
     TErf,
     TSqrt,
+    TPowi,
     TCUDF,
     TAppender,
     TMerger,
@@ -154,9 +156,9 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
         // Regular expressions for various types of tokens.
         static ref KEYWORD_RE: Regex = Regex::new(
             "^(if|for|zip|len|lookup|keyexists|slice|sort|exp|log|erf|sqrt|simd|select|broadcast|\
-             iterate|cudf|simditer|fringeiter|iter|merge|result|let|true|false|macro|\
+             iterate|cudf|nditer|simditer|fringeiter|iter|merge|result|let|true|false|macro|\
              i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|vec|appender|merger|vecmerger|\
-             dictmerger|groupmerger|tovec|min|max)$").unwrap();
+             dictmerger|groupmerger|tovec|min|max|powi)$").unwrap();
 
         static ref IDENT_RE: Regex = Regex::new(r"^[A-Za-z$_][A-Za-z0-9$_]*$").unwrap();
 
@@ -216,6 +218,7 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
                             "iter" => TScalarIter,
                             "simditer" => TSimdIter,
                             "fringeiter" => TFringeIter,
+                            "nditer" => TNdIter,
                             "len" => TLen,
                             "lookup" => TLookup,
                             "keyexists" => TKeyExists,
@@ -225,6 +228,7 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
                             "log" => TLog,
                             "erf" => TErf,
                             "sqrt" => TSqrt,
+                            "powi" => TPowi,
                             "cudf" => TCUDF,
                             "simd" => TSimd,
                             "select" => TSelect,
@@ -359,6 +363,7 @@ impl fmt::Display for Token {
                     TScalarIter => "iter",
                     TSimdIter => "simditer",
                     TFringeIter => "fringeiter",
+                    TNdIter => "nditer",
                     TLen => "len",
                     TLookup => "lookup",
                     TKeyExists => "keyexists",
@@ -368,6 +373,7 @@ impl fmt::Display for Token {
                     TLog => "log",
                     TErf => "erf",
                     TSqrt => "sqrt",
+                    TPowi => "powi",
                     TCUDF => "cudf",
                     TSimd => "simd",
                     TSelect => "select",

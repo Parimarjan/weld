@@ -491,13 +491,11 @@ impl<'t> Parser<'t> {
     /// a vector expression (i.e., without an explicit iter(..).
     fn parse_iter(&mut self) -> WeldResult<Iter<PartialType>> {
         let iter: Token = self.peek().clone();
-        if *self.peek() == TScalarIter || *self.peek() == TSimdIter || *self.peek() == TFringeIter {
+        if *self.peek() == TScalarIter || *self.peek() == TSimdIter || *self.peek() == TFringeIter || *self.peek() == TNdIter {
             try!(self.consume(iter.clone()));
             try!(self.consume(TOpenParen));
             let data = try!(self.expr());
-            let mut start = None;
-            let mut end = None;
-            let mut stride = None;
+            let (mut start, mut end, mut stride, mut shapes, mut strides) = (None, None, None, None, None);
             if *self.peek() == TComma {
                 try!(self.consume(TComma));
                 start = Some(try!(self.expr()));
@@ -506,6 +504,13 @@ impl<'t> Parser<'t> {
                 try!(self.consume(TComma));
                 stride = Some(try!(self.expr()));
             }
+            if *self.peek() == TComma {
+                try!(self.consume(TComma));
+                shapes = Some(try!(self.expr()));
+                try!(self.consume(TComma));
+                strides = Some(try!(self.expr()));
+            }
+
             let iter = Iter {
                 data: data,
                 start: start,
@@ -514,8 +519,11 @@ impl<'t> Parser<'t> {
                 kind: match iter {
                     TSimdIter => SimdIter,
                     TFringeIter => FringeIter,
+                    TNdIter => NdIter,
                     _ => ScalarIter,
                 },
+                shapes: shapes,
+                strides: strides,
             };
             try!(self.consume(TCloseParen));
             Ok(iter)
@@ -529,8 +537,11 @@ impl<'t> Parser<'t> {
                 kind: match iter {
                     TSimdIter => SimdIter,
                     TFringeIter => FringeIter,
+                    TNdIter => NdIter,
                     _ => ScalarIter,
                 },
+                shapes: None,
+                strides: None,
             };
             Ok(iter)
         }
@@ -969,6 +980,21 @@ impl<'t> Parser<'t> {
             TErf => self.unary_leaf_expr("Erf"),
 
             TSqrt => self.unary_leaf_expr("Sqrt"),
+            
+            // FIXME: is this needed here?
+            TPowi => {
+                try!(self.consume(TOpenParen));
+                let value = try!(self.expr());
+                try!(self.consume(TComma));
+                let power = try!(self.expr());
+                try!(self.consume(TCloseParen));
+
+                Ok(expr_box(Powi {
+                                value: value,
+                                power: power,
+                            },
+                            Annotations::new()))
+            }
 
             TMerge => {
                 try!(self.consume(TOpenParen));

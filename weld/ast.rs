@@ -238,6 +238,7 @@ pub enum IterKind {
     ScalarIter, // A standard scalar iterator.
     SimdIter, // A vector iterator.
     FringeIter, // A fringe iterator, handling the fringe of a vector iter.
+    NdIter,     // multi-dimensional nd-iter
 }
 
 impl fmt::Display for IterKind {
@@ -247,6 +248,7 @@ impl fmt::Display for IterKind {
             ScalarIter => "scalar",
             SimdIter => "vectorized",
             FringeIter => "fringe",
+            NdIter => "nditer",
         };
         f.write_str(text)
     }
@@ -261,6 +263,9 @@ pub struct Iter<T: TypeBounds> {
     pub end: Option<Box<Expr<T>>>,
     pub stride: Option<Box<Expr<T>>>,
     pub kind: IterKind,
+    // NdIter specific fields
+    pub strides: Option<Box<Expr<T>>>,
+    pub shapes: Option<Box<Expr<T>>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -279,6 +284,10 @@ pub enum ExprKind<T: TypeBounds> {
     UnaryOp {
         kind: UnaryOpKind,
         value: Box<Expr<T>>,
+    },
+    Powi {
+       value: Box<Expr<T>>,
+       power: Box<Expr<T>>, 
     },
     Cast {
         kind: ScalarKind,
@@ -364,6 +373,7 @@ impl<T: TypeBounds> ExprKind<T> {
             Broadcast(_) => "Broadcast",
             BinOp{ .. } => "BinOp",
             UnaryOp { .. } => "UnaryOp",
+            Powi { .. } => "Powi",
             Cast { .. } => "Cast",
             ToVec { .. } => "ToVec",
             MakeStruct { .. } => "MakeStruct",
@@ -512,6 +522,11 @@ impl<T: TypeBounds> Expr<T> {
                 ..
             } => vec![left.as_ref(), right.as_ref()],
             UnaryOp {ref value, ..} => vec![value.as_ref()],
+            Powi {
+                ref value,
+                ref power,
+                ..
+            } =>vec![value.as_ref(), power.as_ref()],
             Cast { ref child_expr, .. } => vec![child_expr.as_ref()],
             ToVec { ref child_expr } => vec![child_expr.as_ref()],
             Let {
@@ -613,6 +628,10 @@ impl<T: TypeBounds> Expr<T> {
                 ..
             } => vec![left.as_mut(), right.as_mut()],
             UnaryOp { ref mut value, .. } => vec![value.as_mut()],
+            Powi {
+                ref mut value,
+                ref mut power,
+            } => vec![value.as_mut(), power.as_mut()],
             Cast { ref mut child_expr, .. } => vec![child_expr.as_mut()],
             ToVec { ref mut child_expr } => vec![child_expr.as_mut()],
             Let {
@@ -734,6 +753,7 @@ impl<T: TypeBounds> Expr<T> {
                     Ok(true)
                 }
                 (&UnaryOp { .. }, &UnaryOp { .. }) => Ok(true),
+                (&Powi { .. }, &Powi { .. }) => Ok(true),
                 (&Cast { kind: ref kind1, .. }, &Cast { kind: ref kind2, .. }) if kind1 ==
                                                                                   kind2 => Ok(true),
                 (&ToVec { .. }, &ToVec { .. }) => Ok(true),

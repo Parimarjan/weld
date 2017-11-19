@@ -223,6 +223,16 @@ impl PartialExpr {
                 }
             }
 
+            Powi {
+                ref value,
+                ref power,
+            } => {
+                Powi {
+                    value: try!(typed_box(value)),
+                    power: try!(typed_box(power)),
+                }
+            }
+
             UnaryOp { kind, ref value } => {
                 UnaryOp {
                     kind: kind,
@@ -357,12 +367,23 @@ impl PartialExpr {
                         Some(ref s) => Some(try!(typed_box(s))),
                         None => None,
                     };
+                    let shapes = match iter.shapes {
+                        Some(ref s) => Some(try!(typed_box(s))),
+                        None => None,
+                    };
+                    let strides = match iter.strides {
+                        Some(ref s) => Some(try!(typed_box(s))),
+                        None => None,
+                    };
+
                     let typed_iter = Iter {
                         data: try!(typed_box(&iter.data)),
                         start: start,
                         end: end,
                         stride: stride,
                         kind: iter.kind.clone(),
+                        shapes: shapes,
+                        strides: strides,
                     };
                     typed_iters.push(typed_iter);
                 }
