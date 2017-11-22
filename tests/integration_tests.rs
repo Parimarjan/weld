@@ -2611,15 +2611,16 @@ fn nditer_zip() {
     unsafe { free_value_and_module(ret_value) };
 }
 
-fn simple_powi() {
-    let code = "|x:f64| powi(x, 3)";
+fn simple_pow() {
+    use std::f64;
+    let code = "|x:f64| pow(x, 2.0)";
     let conf = default_conf();
-    let input = 3.0f64;
+    let input = 4.0;
     let ret_value = compile_and_run(code, conf, &input);
     let data = unsafe { weld_value_data(ret_value) as *const f64 };
+
     let result = unsafe { (*data).clone() };
-    let output = 27.0f64;
-    assert!(approx_equal(output, result, 5));
+    assert!(approx_equal(16.0, result, 5));
     unsafe { free_value_and_module(ret_value) };
 }
 
@@ -2715,7 +2716,7 @@ fn main() {
              ("simple_sort", simple_sort),
              ("complex_sort", complex_sort),
              ("nested_appender_loop", nested_appender_loop),
-             ("simple_powi", simple_powi),];
+             ("simple_pow", simple_pow),];
 
     println!("");
     println!("running tests");
