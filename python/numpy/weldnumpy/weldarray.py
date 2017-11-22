@@ -7,6 +7,11 @@ from copy import deepcopy
 eval_calls = 0
 assert np.__version__ >= 1.13, "minimum numpy version needed"
 
+ALL_PASSES = ["loop-fusion", "infer-size", "short-circuit-booleans", "predicate", "vectorize",
+          "fix-iterate"]
+# TMP_PASSES = ALL_PASSES
+TMP_PASSES = ["loop-fusion", "infer-size", "short-circuit-booleans", "predicate", "fix-iterate"]
+
 # TODO: wherever real shape is used, need to ensure that we are not passing in ndarrays there.
 class weldarray(np.ndarray):
     '''
@@ -468,7 +473,7 @@ class weldarray(np.ndarray):
         elif ufunc.__name__ == 'square' or ufunc.__name__ == 'power':
             if ufunc.__name__ == 'square':
                 # power arg is implied
-                power = 2
+                power = np.float64(2.0)
             else:
                 power = input_args[1]
             return self._power_op(power, result=output)
@@ -571,7 +576,8 @@ class weldarray(np.ndarray):
         if restype is None:
             # use default type for all weldarray operations
             restype = WeldVec(self._weld_type)
-        arr = self.weldobj.evaluate(restype, verbose=self._verbose)
+
+        arr = self.weldobj.evaluate(restype, verbose=self._verbose, passes=TMP_PASSES)
         
         if hasattr(arr, '__len__'):
             arr = arr.reshape(self._real_shape)
@@ -706,7 +712,7 @@ class weldarray(np.ndarray):
             result = self._get_result()
         else:
             assert False, 'TODO: support this' 
-        template = 'result(for({arr}, appender, |b,i,e| merge(b,powi(e,{pow}))))'
+        template = 'result(for({arr}, appender, |b,i,e| merge(b,pow(e,{pow}))))'
         arr = self._get_array_iter_code(result)
         result.weldobj.weld_code = template.format(arr = arr,
                                                   pow = power)

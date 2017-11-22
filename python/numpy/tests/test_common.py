@@ -120,7 +120,7 @@ def test_square():
     square, and other powers.
     '''
     for s in SHAPES:
-        n, w = random_arrays(s, 'float32')
+        n, w = random_arrays(s, 'float64')
         n2 = np.square(n)
         w2 = np.square(w)
         assert np.allclose(n2, w2)
@@ -129,10 +129,11 @@ def test_powers():
     '''
     square, and other powers.
     '''
-    POWERS = [3, 5, 8];
+    POWERS = [3.0, 5.0, 8.0];
     for s in SHAPES:
         for p in POWERS:
-            n, w = random_arrays(s, 'float32')
+            p = np.float64(p)
+            n, w = random_arrays(s, 'float64')
             n2 = np.power(n, p)
             w2 = np.power(w, p)
             assert np.allclose(n2, w2)
@@ -177,4 +178,5 @@ def test_trig():
 
             assert np.allclose(n2, w2)
 
-test_trig()
+# test_powers()
+test_square()
