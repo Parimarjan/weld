@@ -107,6 +107,7 @@ pub enum Token {
     TXor,
     TMax,
     TMin,
+    TPow,
     TEndOfInput,
 }
 
@@ -147,6 +148,7 @@ impl Token {
                 TXor |
                 TMax |
                 TMin |
+                TPow |
                 TEndOfInput => false,
             _ => true
         }
@@ -168,7 +170,7 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
             log|erf|sqrt|simd|select|broadcast|nditer|\
              iterate|cudf|simditer|fringeiter|iter|merge|result|let|true|false|macro|\
              i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|vec|appender|merger|vecmerger|\
-             dictmerger|groupmerger|tovec|min|max|powi)$").unwrap();
+             dictmerger|groupmerger|tovec|min|max|pow)$").unwrap();
 
         static ref IDENT_RE: Regex = Regex::new(r"^[A-Za-z$_][A-Za-z0-9$_]*$").unwrap();
 
@@ -256,6 +258,7 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
                             "false" => TBoolLiteral(false),
                             "min" => TMin,
                             "max" => TMax,
+                            "pow" => TPow,
                             _ => return weld_err!("Invalid input token: {}", text),
                         });
 
@@ -437,6 +440,7 @@ impl fmt::Display for Token {
                     TXor => "^",
                     TMin => "min",
                     TMax => "max",
+                    TPow => "pow",
                     TEndOfInput => "<END>",
                 })
             }

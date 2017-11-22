@@ -33,9 +33,6 @@ declare <4 x double> @llvm.exp.v4f64(<4 x double>)
 declare float @llvm.sqrt.f32(float)
 declare double @llvm.sqrt.f64(double)
 
-declare double @llvm.powi.f64(double, i32)
-declare float @llvm.powi.f32(float, i32)
-
 declare float     @llvm.sin.f32(float  %Val)
 declare double    @llvm.sin.f64(double %Val)
 declare float     @llvm.cos.f32(float  %Val)
@@ -73,6 +70,11 @@ declare double @cosh(double)
 declare float @tanhf(float)
 declare double @tanh(double)
 
+; Power
+declare float @llvm.pow.f32(float, float)
+declare double @llvm.pow.f64(double, double)
+
+>>>>>>> upstream/master
 declare i32 @puts(i8* nocapture) nounwind
 
 ; Weld runtime functions

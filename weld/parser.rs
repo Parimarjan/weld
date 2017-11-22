@@ -983,20 +983,6 @@ impl<'t> Parser<'t> {
             TSinh => self.unary_leaf_expr(TSinh),
             TCosh => self.unary_leaf_expr(TCosh),
             TTanh => self.unary_leaf_expr(TTanh),
-            TPowi => {
-                try!(self.consume(TOpenParen));
-                let value = try!(self.expr());
-                try!(self.consume(TComma));
-                let power = try!(self.expr());
-                try!(self.consume(TCloseParen));
-
-                Ok(expr_box(Powi {
-                                value: value,
-                                power: power,
-                            },
-                            Annotations::new()))
-            }
-
             TMerge => {
                 try!(self.consume(TOpenParen));
                 let builder = try!(self.expr());
@@ -1191,6 +1177,21 @@ impl<'t> Parser<'t> {
                     right: right,
                 }, Annotations::new());
                 
+                Ok(res)
+            }
+
+            TPow => {
+                try!(self.consume(TOpenParen));
+                let left = try!(self.expr());
+                try!(self.consume(TComma));
+                let right = try!(self.expr());
+                try!(self.consume(TCloseParen));
+                
+                let res = expr_box(BinOp {
+                    kind: Pow,
+                    left: left,
+                    right: right,
+                }, Annotations::new());
                 Ok(res)
             }
             

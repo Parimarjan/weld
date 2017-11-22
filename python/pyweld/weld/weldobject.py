@@ -168,7 +168,7 @@ class WeldObject(object):
         # print(text)
         return text
 
-    def evaluate(self, restype, verbose=False, decode=True):
+    def evaluate(self, restype, verbose=True, decode=True, passes=None):
 	verbose = True
         function = self.to_weld_func()
         # Returns a wrapped ctypes Structure
@@ -208,6 +208,10 @@ class WeldObject(object):
         arg = cweld.WeldValue(void_ptr)
         conf = cweld.WeldConf()
         err = cweld.WeldError()
+
+        if passes is not None:
+            conf.set("weld.optimization.passes", ",".join(passes))
+
         module = cweld.WeldModule(function, conf, err)
         if err.code() != 0:
             raise ValueError("Could not compile function {}: {}".format(
