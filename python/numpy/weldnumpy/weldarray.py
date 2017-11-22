@@ -9,8 +9,8 @@ assert np.__version__ >= 1.13, "minimum numpy version needed"
 
 ALL_PASSES = ["loop-fusion", "infer-size", "short-circuit-booleans", "predicate", "vectorize",
           "fix-iterate"]
-# TMP_PASSES = ALL_PASSES
-TMP_PASSES = ["loop-fusion", "infer-size", "short-circuit-booleans", "predicate", "fix-iterate"]
+TMP_PASSES = ALL_PASSES
+# TMP_PASSES = ["loop-fusion", "infer-size", "short-circuit-booleans", "predicate", "fix-iterate"]
 
 # TODO: wherever real shape is used, need to ensure that we are not passing in ndarrays there.
 class weldarray(np.ndarray):
