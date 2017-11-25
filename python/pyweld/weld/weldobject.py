@@ -171,7 +171,6 @@ class WeldObject(object):
     def evaluate(self, restype, verbose=True, decode=True, passes=None):
         verbose = True
         function = self.to_weld_func()
-
         # Returns a wrapped ctypes Structure
         def args_factory(encoded):
             class Args(ctypes.Structure):
@@ -212,6 +211,8 @@ class WeldObject(object):
 
         if passes is not None:
             conf.set("weld.optimization.passes", ",".join(passes))
+	# FIXME: Remove this!
+	# conf.set("weld.compile.dumpCode", "true")	
 
         module = cweld.WeldModule(function, conf, err)
         if err.code() != 0:
@@ -223,7 +224,7 @@ class WeldObject(object):
 
         start = time.time()
         conf = cweld.WeldConf()
-        weld_num_threads = os.environ.get("WELD_NUM_THREADS", "1")
+        weld_num_threads = os.environ.get("WELD_NUM_THREADS", "8")
 	print("weld num threads = ", weld_num_threads)
         conf.set("weld.threads", weld_num_threads)
 	mem_limit = "1000000000000"
