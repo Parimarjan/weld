@@ -5,9 +5,9 @@
 #
 
 import ctypes
-
 import os
 import time
+import re
 
 import bindings as cweld
 from types import *
@@ -137,8 +137,12 @@ class WeldObject(object):
             for key in sorted(cur_obj.dependencies.keys()):
                 queue.append(cur_obj.dependencies[key])
             visited.add(cur_obj_id)
-        let_statements.sort()  # To ensure that let statements are in the right
-                               # order in the final generated program
+        # each let statement is of the form:
+        #   let obj10xx = ....;
+        # we must sort the object by their numerical values of obj, otherwise
+        # in a case with: obj100, and obj99, obj100 < obj99 according to string
+        # sorting rules
+        let_statements.sort(key=lambda x: int(re.search(r'\d+', x).group()))
         return "\n".join(let_statements)
 
     def to_weld_func(self):
@@ -153,10 +157,8 @@ class WeldObject(object):
         text = header + " " + self.get_let_statements() + "\n" + self.weld_code
         return text
 
-    def evaluate(self, restype, verbose=True, decode=True, passes=None,
-                 num_threads=1, apply_experimental_transforms=False):
+    def evaluate(self, restype, verbose=True, decode=True, passes=None):
         function = self.to_weld_func()
-
         # Returns a wrapped ctypes Structure
         def args_factory(encoded):
             class Args(ctypes.Structure):
@@ -196,11 +198,9 @@ class WeldObject(object):
         err = cweld.WeldError()
 
         if passes is not None:
-            passes = ",".join(passes)
-            passes = passes.strip()
-            if passes != "":
-                conf.set("weld.optimization.passes", passes)
-
+            conf.set("weld.optimization.passes", ",".join(passes))
+        # conf.set("weld.compile.dumpCode", "true")
+        # conf.set("weld.compile.multithreadSupport", "false")
         module = cweld.WeldModule(function, conf, err)
         if err.code() != 0:
             raise ValueError("Could not compile function {}: {}".format(
@@ -211,10 +211,11 @@ class WeldObject(object):
 
         start = time.time()
         conf = cweld.WeldConf()
-        conf.set("weld.threads", str(num_threads))
-        conf.set("weld.memory.limit", "100000000000")
-        conf.set("weld.optimization.applyExperimentalTransforms",
-                 "true" if apply_experimental_transforms else "false")
+        weld_num_threads = os.environ.get("WELD_NUM_THREADS", "1")
+        conf.set("weld.threads", weld_num_threads)
+	mem_limit = "1000000000000"
+        conf.set("weld.memory.limit", mem_limit)
+
         err = cweld.WeldError()
         weld_ret = module.run(conf, arg, err)
         if err.code() != 0:
