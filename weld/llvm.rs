@@ -3309,6 +3309,7 @@ impl LlvmGenerator {
             }
 
             UnaryOp { op, ref child, } => {
+                ctx.code.add(format!("call void @weld_ptx_test()"));
                 self.gen_unary_op(ctx, func, output, child, op)?
             }
 

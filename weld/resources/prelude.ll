@@ -88,6 +88,9 @@ declare i32 @puts(i8* nocapture) nounwind
 
 ; Weld runtime functions
 
+; gpu test function
+declare void    @weld_ptx_test()
+
 declare i64     @weld_run_begin(void (%work_t*)*, i8*, i64, i32)
 declare i8*     @weld_run_get_result(i64)
 
