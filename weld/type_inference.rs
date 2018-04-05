@@ -661,6 +661,9 @@ fn infer_locally(expr: &mut PartialExpr, env: &mut TypeMap) -> WeldResult<bool> 
 
             Ok(changed)
         }
+        Gpu { } => {
+            Ok(false)
+        }
     }
 }
 

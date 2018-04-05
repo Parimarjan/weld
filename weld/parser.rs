@@ -754,7 +754,6 @@ impl<'t> Parser<'t> {
     fn leaf_expr(&mut self) -> WeldResult<Box<PartialExpr>> {
         let mut annotations = Annotations::new();
         try!(self.parse_annotations(&mut annotations));
-
         match *self.next() {
             TI8Literal(v) => Ok(expr_box(Literal(I8Literal(v)), Annotations::new())),
             TI32Literal(v) => Ok(expr_box(Literal(I32Literal(v)), Annotations::new())),
@@ -1295,6 +1294,12 @@ impl<'t> Parser<'t> {
                     left: left,
                     right: right,
                 }, Annotations::new());
+                Ok(res)
+            }
+
+            TGpu => {
+                println!("in TGpu, parser");
+                let res = expr_box(Gpu {}, Annotations::new());
                 Ok(res)
             }
             

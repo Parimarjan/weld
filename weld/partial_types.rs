@@ -452,6 +452,7 @@ impl PartialExpr {
             Negate(ref expr) => Negate(try!(typed_box(expr))),
             Broadcast(ref expr) => Broadcast(try!(typed_box(expr))),
             Serialize(ref expr) => Serialize(try!(typed_box(expr))),
+            Gpu { } => { Gpu { } },
         };
 
         Ok(TypedExpr {

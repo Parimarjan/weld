@@ -12,6 +12,11 @@
 #include "assert.h"
 #include "runtime.h"
 
+// pari: temporarily adding a dummy function to test ptx stuff
+void weld_ptx_test() {
+    printf("in ptx test!\n");
+}
+
 // These is needed to ensure each grain size is divisible by the SIMD vector size. A value of 64
 // should be sufficiently high enough to protect against all the common vector lengths (4, 8,
 // 16, 32, 64 - 64 is used for 8-bit values in AVX-512).

@@ -1973,6 +1973,18 @@ fn simple_exp() {
     unsafe { free_value_and_module(ret_value) };
 }
 
+fn test_gpu() {
+    let code = "|x:f64| gpu()";
+    let conf = default_conf();
+    let input = 1.0f64;
+    let ret_value = compile_and_run(code, conf, &input);
+    let data = unsafe { weld_value_data(ret_value) as *const f64 };
+    let result = unsafe { (*data).clone() };
+    let output = 2.718281828459045;
+    assert!(approx_equal(output, result, 5));
+    unsafe { free_value_and_module(ret_value) };
+}
+
 fn exp_error() {
     let code = "|x:i64| exp(x)";
     let conf = default_conf();
@@ -3114,7 +3126,8 @@ fn main() {
              ("nested_appender_loop", nested_appender_loop),
              ("simple_sort", simple_sort),
              ("complex_sort", complex_sort),
-             ("serialize_test", serialize_test)];
+             ("serialize_test", serialize_test),
+             ("gpu_test", test_gpu)];
 
     println!("");
     println!("running tests");

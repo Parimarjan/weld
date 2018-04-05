@@ -3602,6 +3602,12 @@ impl LlvmGenerator {
                     return weld_err!("Non builder type {} found in NewBuilder", print_type(ty))
                 }
             }
+
+            Gpu { } => {
+                println!("gpu stuff!");
+                /* add llvm stuff to call our function */
+                ctx.code.add(format!("call void @weld_ptx_test()"));
+            }
         }
 
         Ok(())

@@ -113,6 +113,7 @@ pub enum Token {
     TMin,
     TPow,
     TEndOfInput,
+    TGpu,
 }
 
 impl Token {
@@ -271,6 +272,7 @@ pub fn tokenize(input: &str) -> WeldResult<Vec<Token>> {
                             "min" => TMin,
                             "max" => TMax,
                             "pow" => TPow,
+                            "gpu" => TGpu,
                             _ => return weld_err!("Invalid input token: {}", text),
                         });
         } else if STRLIT_RE.is_match(text) {
@@ -464,6 +466,7 @@ impl fmt::Display for Token {
                     TMax => "max",
                     TPow => "pow",
                     TEndOfInput => "<END>",
+                    TGpu => "gpu",
                 })
             }
         }

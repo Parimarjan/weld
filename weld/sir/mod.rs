@@ -78,7 +78,8 @@ pub enum StatementKind {
     UnaryOp {
         op: UnaryOpKind,
         child: Symbol,
-    }
+    },
+    Gpu { }
 }
 
 impl StatementKind {
@@ -193,6 +194,7 @@ impl StatementKind {
                     vars.push(arg);
                 }
             }
+            Gpu { } => { }
         }
         vars.into_iter()
     }
@@ -536,6 +538,7 @@ impl fmt::Display for StatementKind {
                 ref op,
                 ref child
             } => write!(f, "{}({})", op, child),
+            Gpu { } => write!(f, ""),
         }
     }
 }
@@ -1340,7 +1343,13 @@ fn gen_expr(expr: &TypedExpr,
                 weld_err!("Argument to For was not a Lambda: {}", print_expr(func))
             }
         }
-
+ 
+        ExprKind::Gpu { } => {
+            //let (cur_func, cur_block, value_sym) = gen_expr(value, prog, cur_func, cur_block, tracker, multithreaded)?;
+            let kind = Gpu { };
+            let res_sym = tracker.symbol_for_statement(prog, cur_func, cur_block, &expr.ty, kind);
+            Ok((cur_func, cur_block, res_sym))
+        }         
         _ => weld_err!("Unsupported expression: {}", print_expr(expr)),
     }
 }

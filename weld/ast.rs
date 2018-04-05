@@ -372,6 +372,7 @@ pub enum ExprKind<T: TypeBounds> {
         value: Box<Expr<T>>,
     },
     Res { builder: Box<Expr<T>> },
+    Gpu { },
 }
 
 impl<T: TypeBounds> ExprKind<T> {
@@ -409,6 +410,7 @@ impl<T: TypeBounds> ExprKind<T> {
             For { .. } => "For",
             Merge { .. } => "Merge",
             Res { .. } => "Res",
+            Gpu { .. } => "Gpu",
         }
     }
 
@@ -642,6 +644,7 @@ impl<T: TypeBounds> Expr<T> {
             Broadcast(ref t) => vec![t.as_ref()],
             // Explicitly list types instead of doing _ => ... to remember to add new types.
             Literal(_) | Ident(_) => vec![],
+            Gpu { } => vec![],
         }.into_iter()
     }
 
@@ -749,6 +752,7 @@ impl<T: TypeBounds> Expr<T> {
             Broadcast(ref mut t) => vec![t.as_mut()],
             // Explicitly list types instead of doing _ => ... to remember to add new types.
             Literal(_) | Ident(_) => vec![],
+            Gpu{} => vec![],
         }.into_iter()
     }
 
@@ -850,6 +854,7 @@ impl<T: TypeBounds> Expr<T> {
                         Ok(*l == *r)
                     }
                 }
+                (&Gpu{ }, &Gpu{ }) => Ok(true),
                 _ => Ok(false), // all else fail.
             };
 

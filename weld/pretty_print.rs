@@ -521,6 +521,8 @@ fn print_expr_impl<T: PrintableType>(expr: &Expr<T>,
                                    .map(|e| print_expr_impl(e, typed, indent, should_indent))));
             res
         }
+
+        Gpu { } => { format!("{}", "gpu test!") }
     };
 
     format!("{}{}", expr.annotations, expr_str)

@@ -98,6 +98,9 @@ declare void    @weld_run_free(i64, i8*)
 declare void    @weld_run_set_errno(i64, i64)
 declare i64     @weld_run_get_errno(i64)
 
+; temporary ptx test function
+declare void    @weld_ptx_test()
+
 declare i32     @weld_rt_thread_id()
 declare void    @weld_rt_abort_thread()
 declare i32     @weld_rt_get_nworkers()

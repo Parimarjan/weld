@@ -134,6 +134,7 @@ impl ExprHash {
                 Zip { .. } | Length { .. } | Lookup { .. } | KeyExists { .. } |
                 Slice { .. } | Sort { .. } | If { .. } | Iterate { .. } | Select { .. } | Apply { .. } |
                 NewBuilder(_) | Merge { .. } | Res { .. } => {}
+            Gpu { .. } => {}
         }
         if !finished_subexpressions {
             for child in expr.children() {
