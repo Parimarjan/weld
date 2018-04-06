@@ -75,6 +75,7 @@ typedef struct {
 
 extern "C" {
   void weld_runtime_init();
+  void weld_ptx_test();
 
   // weld_rt functions can only be called from a runtime thread that is executing a Weld computation
   int32_t weld_rt_thread_id();
