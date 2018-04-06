@@ -24,7 +24,7 @@ void checkCudaErrors(CUresult err) {
   assert(err == CUDA_SUCCESS);
 }
 
-void weld_ptx_test() {
+extern "C" void weld_ptx_test() {
     printf("in ptx test!\n");
     CUdevice    device;
     CUmodule    cudaModule;
