@@ -21,15 +21,15 @@ declare i64 @llvm.ctlz.i64(i64, i1)
 declare i8* @malloc(i64)
 declare void @qsort(i8*, i64, i64, i32 (i8*, i8*)*)
 
-; temporary testing thing
-declare void    @weld_ptx_test()
-
 ; Weld runtime functions
 declare void    @weld_runtime_init()
 
 declare i64     @weld_run_begin(void (%work_t*)*, i8*, i64, i32)
 declare i8*     @weld_run_get_result(i64)
 declare void    @weld_run_dispose(i64)
+
+; temporary testing thing
+declare void    @weld_ptx_test()
 
 declare i8*     @weld_run_malloc(i64, i64)
 declare i8*     @weld_run_realloc(i64, i8*, i64)

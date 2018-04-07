@@ -1035,7 +1035,7 @@ impl LlvmGenerator {
                     ctx: &mut FunctionContext)
                     -> WeldResult<()> {
         
-        ctx.code.add(format!("call void @weld_ptx_test()"));
+        //ctx.code.add(format!("call void @weld_ptx_test()"));
         let builder_value = ctx.var_ids.next();
         let mut res = ctx.var_ids.next();
         ctx.code.add(format!("{} = load {}, {}* {}", &builder_value, &merge_ty_str, &merge_ty_str, &builder_ptr));
@@ -2253,7 +2253,9 @@ impl LlvmGenerator {
                 let run_id = ctx.var_ids.next();
                 ctx.code.add(format!("{} = getelementptr {}, {}* null, i32 1", &elem_size_ptr, &ty_str, &ty_str));
                 ctx.code.add(format!("{} = ptrtoint {}* {} to i64", &elem_size, &ty_str, &elem_size_ptr));
-
+                
+                // FIXME: temporary attempts
+                //ctx.code.add(format!("call void @weld_ptx_test()"));
                 ctx.code.add(format!("{} = call i64 @weld_rt_get_run_id()", run_id));
                 ctx.code.add(format!("{} = call i8* @weld_run_malloc(i64 {}, i64 {})",
                                         &elem_storage,
