@@ -1035,7 +1035,7 @@ impl LlvmGenerator {
                     ctx: &mut FunctionContext)
                     -> WeldResult<()> {
         
-        //ctx.code.add(format!("call void @weld_ptx_test()"));
+        ctx.code.add(format!("call void @weld_ptx_test()"));
         let builder_value = ctx.var_ids.next();
         let mut res = ctx.var_ids.next();
         ctx.code.add(format!("{} = load {}, {}* {}", &builder_value, &merge_ty_str, &merge_ty_str, &builder_ptr));

@@ -1,14 +1,18 @@
 OS = $(shell uname -s)
 LLVM_VERSION = $(shell llvm-config --version | cut -d . -f 1,2)
 
-CFLAGS = -O3 -std=c++11 -stdlib=libstdc++ -Wall -fno-use-cxa-atexit -fPIC -flto -g -I/usr/local/cuda-8.0/include -lcuda
+# TODO: Maybe use -L instead of -I??
+CFLAGS = -O2 -std=c++11 -stdlib=libstdc++ -Wall -fno-use-cxa-atexit -fPIC -flto 
+CFLAGS2 = -O2 -std=c++11 -stdlib=libstdc++ -Wall -fno-use-cxa-atexit -fPIC
+#CFLAGS = -O2 -std=c++11 -stdlib=libstdc++ -Wall -fno-use-cxa-atexit -fPIC -flto -I/usr/local/cuda-8.0/include -lcuda-8.0
+#CFLAGS = -O2 -std=c++11 -fno-use-cxa-atexit -fPIC -flto -I/usr/local/cuda-8.0/include -L/usr/local/cuda-8.0/lib64 -L/usr/local/cuda-8.0/lib/stubs -lcuda -lcudart
 
 ifeq (${OS}, Darwin)
   # OS X
   CLANG ?= clang++-${LLVM_VERSION}
 else ifeq (${OS}, Linux)
   # Linux
-  CLANG ?= clang++-${LLVM_VERSION}
+  CLANG ?= clang++-${LLVM_VERSION} 
 else
   $(error Unsupported platform: ${OS})
 endif
@@ -24,8 +28,13 @@ merger.o: merger.cpp
 
 runtime.o: runtime.cpp
 	${CLANG} ${CFLAGS} -c $< -o $@
+	#${CLANG} ${CFLAGS} $< -o $@
 
-libweldrt.bc: vb.o merger.o runtime.o
+cuda-test.o: cuda-test.cpp
+	#${CLANG} -O2 $< -g -c -I/usr/local/cuda-8.0/include -lcuda -o $@
+	${CLANG} ${CFLAGS} -I/usr/local/cuda-8.0/include -lcuda -c $< -o $@
+
+libweldrt.bc: vb.o merger.o runtime.o cuda-test.o
 	llvm-link-${LLVM_VERSION} $^ -o $@
 
 clean:
