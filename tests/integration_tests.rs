@@ -14,6 +14,7 @@ use weld::{weld_value_new, weld_value_data, weld_value_module, weld_value_free};
 use weld::{weld_module_compile, weld_module_run, weld_module_free};
 use weld::{weld_error_new, weld_error_code, weld_error_message, weld_error_free};
 use weld::{weld_conf_new, weld_conf_set, weld_conf_free};
+use weld::{weld_load_library};
 
 use std::f64::consts::PI;
 use std::ffi::{CStr, CString};
@@ -765,6 +766,46 @@ fn for_predicated_vectorizable_loop() {
     unsafe { free_value_and_module(ret_value) };
 }
 
+fn cuda_ptx_test() {
+    #[allow(dead_code)]
+    struct Args {
+        x: WeldVec<i32>,
+        a: i32,
+    }
+
+    let code = "|x:vec[i32], a:i32| result(for(x, merger[i32,+], |b,i,e| merge(b, e+a)))";
+    let conf = default_conf();
+    //let lib_name = CString::new("/usr/local/cuda-8.0/lib64/stubs/libcuda").unwrap().into_raw() as *const c_char;
+    let lib_name = CString::new("/usr/lib/x86_64-linux-gnu/libcuda").unwrap().into_raw() as *const c_char;
+    let lib_name2 = CString::new("/usr/local/cuda-8.0/lib64/libcudart").unwrap().into_raw() as *const c_char;
+    let mut err = weld_error_new();
+    unsafe {
+        weld_load_library(lib_name, err);
+        println!("load cuda message: {:?}",
+                           unsafe { CStr::from_ptr(weld_error_message(err)) });
+        err = weld_error_new();
+        weld_load_library(lib_name2, err);
+        println!("load cudart message: {:?}",
+                           unsafe { CStr::from_ptr(weld_error_message(err)) });
+    }
+    let input_vec = vec![1, 2, 3, 4, 5];
+    let ref input_data = Args {
+        x: WeldVec {
+            data: input_vec.as_ptr(),
+            len: input_vec.len() as i64,
+        },
+        a: 1,
+    };
+
+    let ret_value = compile_and_run(code, conf, input_data);
+    let data = unsafe { weld_value_data(ret_value) as *const i32 };
+    let result = unsafe { (*data).clone() };
+    let output = 20;
+    assert_eq!(result, output);
+    unsafe { free_value_and_module(ret_value) };
+
+}
+
 fn simple_for_merger_loop() {
     #[allow(dead_code)]
     struct Args {
@@ -774,7 +815,6 @@ fn simple_for_merger_loop() {
 
     let code = "|x:vec[i32], a:i32| result(for(x, merger[i32,+], |b,i,e| merge(b, e+a)))";
     let conf = default_conf();
-
     let input_vec = vec![1, 2, 3, 4, 5];
     let ref input_data = Args {
         x: WeldVec {
@@ -1752,7 +1792,8 @@ fn main() {
              ("serial_parlib_test", serial_parlib_test),
              ("multithreaded_module_run", multithreaded_module_run),
              ("iters_outofbounds_error_test", iters_outofbounds_error_test),
-             ("outofmemory_error_test", outofmemory_error_test)];
+             ("outofmemory_error_test", outofmemory_error_test),
+             ("cuda_ptx_test", cuda_ptx_test)];
 
 
     println!("");

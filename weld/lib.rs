@@ -120,6 +120,20 @@ pub unsafe extern "C" fn weld_conf_get(ptr: *const WeldConf, key: *const c_char)
 }
 
 #[no_mangle]
+/// Loads a dynamically linked library and makes it available to the LLVM compiler and JIT.
+/// /// This function is safe to call multiple times on the same library file.
+pub unsafe extern "C" fn weld_load_library(filename: *const c_char, err: *mut WeldError) {
+    assert!(!err.is_null());       
+    let err = &mut *err;
+    let filename = CStr::from_ptr(filename);
+    let filename = filename.to_str().unwrap();
+    if let Err(e) = easy_ll::load_library(filename) {
+        //err.errno = WeldRuntimeErrno::LoadLibraryError;
+        err.message = CString::new(e.description()).unwrap();
+    }
+}
+
+#[no_mangle]
 /// Set the value of `key` to `value`.
 pub unsafe extern "C" fn weld_conf_set(ptr: *mut WeldConf,
                                        key: *const c_char,
