@@ -5,9 +5,9 @@ namespace llvm { FunctionPass *createNVVMReflectPass(const StringMap<int>& Mappi
 
 extern "C" void NVVMReflectPass(llvm::legacy::PassManager pmb);
 
-extern "C" void NVVMReflectPass(llvm::legacy::PassManager pmb){
+extern "C" void NVVMReflectPass(llvm::legacy::PassManager pmb) {
   llvm::StringMap<int> reflect_mapping;
-  reflect_mapping[llvm::StringRef("__CUDA_FTZ")] = 1;
+  reflect_mapping[llvm::StringRef("__CUDA_FTZ")] = 0;
   pmb.add(createNVVMReflectPass(reflect_mapping));
 }
 

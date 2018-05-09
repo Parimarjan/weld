@@ -189,16 +189,16 @@ pub fn compile_module_nvptx(
         debug!("Done parsing module");
 
         // Parse the bytecode file and link it.
-        //let start = PreciseTime::now();
-        //if let Some(s) = bc_file {
-            //let bc_module = parse_module_bytes(context, s)?;
-            //debug!("Done parsing bytecode file");
-            //llvm::linker::LLVMLinkModules2(module, bc_module);
-            //debug!("Done linking bytecode file");
-            //println!("Done linking bytecode file with libdevice!!!!!");
-        //}
-        //let end = PreciseTime::now();
-        //timing.times.push(("Bytecode Linking".to_string(), start.to(end)));
+        let start = PreciseTime::now();
+        if let Some(s) = bc_file {
+            let bc_module = parse_module_bytes(context, s)?;
+            debug!("Done parsing bytecode file");
+            llvm::linker::LLVMLinkModules2(module, bc_module);
+            debug!("Done linking bytecode file");
+            println!("Done linking bytecode file with libdevice!!!!!");
+        }
+        let end = PreciseTime::now();
+        timing.times.push(("Bytecode Linking".to_string(), start.to(end)));
 
         // Validate the module
         let start = PreciseTime::now();

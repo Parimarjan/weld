@@ -34,4 +34,5 @@ fn main() {
     // Link the weldrt C++ library
     println!("cargo:rustc-link-lib=static=weldrt");
     println!("cargo:rustc-link-search=native={}/weld_rt/cpp", project_dir);
+    println!("cargo:rustc-link-search=native={}/", project_dir);
 }
