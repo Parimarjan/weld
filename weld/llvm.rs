@@ -232,7 +232,7 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     stats.weld_times.push(("LLVM Codegen".to_string(), start.to(end)));
 
     // FIXME: temporary.
-    let f2 = File::create("/lfs/1/pari/weld-kernel.ll").expect("Unable to create file");
+    let f2 = File::create("/lfs/1/rahul/weld/weld-kernel.ll").expect("Unable to create file");
     let mut f2 = BufWriter::new(f2);
     let f2_code = format!("{}", llvm_code);
     f2.write_all(f2_code.as_bytes()).expect("Unable to write data");
@@ -2039,7 +2039,7 @@ impl LlvmGenerator {
                                        nvptx_prelude_code.result(),gpu_ctx.alloca_code.result(),
                                        gpu_ctx.code.result());
 
-        let f = File::create("/lfs/1/pari/kernel.ll").expect("Unable to create file");
+        let f = File::create("/lfs/1/rahul/weld/kernel.ll").expect("Unable to create file");
         let mut f = BufWriter::new(f);
         f.write_all(code.as_bytes()).expect("Unable to write data");
 
@@ -2048,7 +2048,7 @@ impl LlvmGenerator {
          * it? */
         let ptx_code = try!(easy_ll::compile_module_nvptx(&code, 3, false,
                                                         Some(NVPTX_LIBDEVICE_LIB)));
-        let f = File::create("/lfs/1/pari/kernel.ptx").expect("Unable to create file");
+        let f = File::create("/lfs/1/rahul/weld/kernel.ptx").expect("Unable to create file");
         let mut f = BufWriter::new(f);
         f.write_all(ptx_code.as_bytes()).expect("Unable to write data");
 

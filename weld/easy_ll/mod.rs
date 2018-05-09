@@ -16,7 +16,7 @@ use std::sync::{Once, ONCE_INIT};
 use std::ptr;
 
 use self::llvm::support::LLVMLoadLibraryPermanently;
-use self::llvm::prelude::{LLVMContextRef, LLVMModuleRef, LLVMMemoryBufferRef};
+use self::llvm::prelude::{LLVMContextRef, LLVMModuleRef, LLVMMemoryBufferRef, LLVMPassManagerRef};
 use self::llvm::execution_engine::{LLVMExecutionEngineRef, LLVMMCJITCompilerOptions, LLVMGetExecutionEngineTargetMachine};
 
 use self::llvm::target_machine::{LLVMCodeGenFileType, LLVMTargetMachineEmitToMemoryBuffer};
@@ -29,6 +29,10 @@ use time::{Duration, PreciseTime};
 #[cfg(test)]
 mod tests;
 
+#[link(name = "ptxgen")]
+extern {
+    fn NVVMReflectPass(pmb: LLVMPassManagerRef) -> ();
+}
 // Helper objects to make sure we only initialize once
 static ONCE: Once = ONCE_INIT;
 static mut INITIALIZE_FAILED: bool = false;
@@ -478,6 +482,8 @@ unsafe fn optimize_module_nvptx(module: LLVMModuleRef, optimization_level: u32)
     pmb::LLVMPassManagerBuilderDispose(builder);
 
     // FIXME: how to create reflect pass??
+    //NVVMReflectPass(manager);
+    NVVMReflectPass(manager);
     //pmb::createNVVMReflectPass();
 
     llvm::core::LLVMRunPassManager(manager, module);
