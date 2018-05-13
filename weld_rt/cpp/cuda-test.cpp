@@ -11,7 +11,7 @@
 #include <sys/time.h>
 #include <time.h>
 
-#define THREAD_BLOCK_SIZE 512
+#define THREAD_BLOCK_SIZE 256
 
 void checkCudaErrors(CUresult err) {
   //printf("cuda err = %d\n", (size_t)err);

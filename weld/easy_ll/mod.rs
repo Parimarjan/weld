@@ -32,6 +32,7 @@ mod tests;
 #[link(name = "ptxgen")]
 extern {
     fn NVVMReflectPass(pmb: LLVMPassManagerRef) -> ();
+    fn NVVMLinkModulesWrapper(module1: LLVMModuleRef, module2: LLVMModuleRef) -> ();
 }
 // Helper objects to make sure we only initialize once
 static ONCE: Once = ONCE_INIT;
@@ -193,11 +194,14 @@ pub fn compile_module_nvptx(
         if let Some(s) = bc_file {
             let bc_module = parse_module_bytes(context, s)?;
             debug!("Done parsing bytecode file");
-            llvm::linker::LLVMLinkModules2(module, bc_module);
+            //llvm::linker::LLVMLinkModules2(module, bc_module);
+            //NVVMLinkModulesWrapper(module, bc_module);
+            println!("going to call the nvvm link modules wrapper");
+            NVVMLinkModulesWrapper(bc_module, module);
             debug!("Done linking bytecode file");
             println!("Done linking bytecode file with libdevice!!!!!");
         }
-        let end = PreciseTime::now();
+        //let end = PreciseTime::now();
         timing.times.push(("Bytecode Linking".to_string(), start.to(end)));
 
         // Validate the module
