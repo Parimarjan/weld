@@ -2049,7 +2049,7 @@ impl LlvmGenerator {
         let ptx_code = try!(easy_ll::compile_module_nvptx(&code, 3, false,
                                                         Some(NVPTX_LIBDEVICE_LIB)));
 
-        let f = File::create("/lfs/1/pari/programmatic-kernel.ptx").expect("Unable to create file");
+        let f = File::create("/lfs/1/pari/kernel.ptx").expect("Unable to create file");
         let mut f = BufWriter::new(f);
         f.write_all(ptx_code.as_bytes()).expect("Unable to write data");
 

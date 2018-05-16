@@ -191,16 +191,16 @@ pub fn compile_module_nvptx(
 
         // Parse the bytecode file and link it.
         let start = PreciseTime::now();
-        if let Some(s) = bc_file {
-            let bc_module = parse_module_bytes(context, s)?;
-            debug!("Done parsing bytecode file");
+        //if let Some(s) = bc_file {
+            //let bc_module = parse_module_bytes(context, s)?;
+            //debug!("Done parsing bytecode file");
             //llvm::linker::LLVMLinkModules2(module, bc_module);
             //NVVMLinkModulesWrapper(module, bc_module);
-            println!("going to call the nvvm link modules wrapper");
-            NVVMLinkModulesWrapper(bc_module, module);
-            debug!("Done linking bytecode file");
-            println!("Done linking bytecode file with libdevice!!!!!");
-        }
+            //println!("going to call the nvvm link modules wrapper");
+            //NVVMLinkModulesWrapper(bc_module, module);
+            //debug!("Done linking bytecode file");
+            //println!("Done linking bytecode file with libdevice!!!!!");
+        //}
         //let end = PreciseTime::now();
         timing.times.push(("Bytecode Linking".to_string(), start.to(end)));
 
@@ -487,8 +487,7 @@ unsafe fn optimize_module_nvptx(module: LLVMModuleRef, optimization_level: u32)
 
     // FIXME: how to create reflect pass??
     //NVVMReflectPass(manager);
-    NVVMReflectPass(manager);
-    //pmb::createNVVMReflectPass();
+    //NVVMReflectPass(manager);
 
     llvm::core::LLVMRunPassManager(manager, module);
     llvm::core::LLVMDisposePassManager(manager);

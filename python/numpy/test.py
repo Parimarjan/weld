@@ -8,7 +8,6 @@ def simple_test():
     w2 = wn.random.rand(10)
     print(w1)
     w3 = w1 + w2
-    w3 = np.sqrt(w3)
     w3 = w3.evaluate()
 
 def simple_cmp():
@@ -91,13 +90,13 @@ def blackscholes_bug_commutativity():
     w4 = w4.evaluate()
     print(np.allclose(n4, w4.view(np.ndarray)))
 
-blackscholes_bug1()
-print("blackscholes bug 1 done!")
+# blackscholes_bug1()
+# print("blackscholes bug 1 done!")
 # simple_test()
 # print("simple test done!")
 # simple_cmp()
 # print("simple cmp done!!!!")
 # blackscholes_bug_commutativity()
 # print("blackscholes bug commutativity done!!!")
-# boundary_error()
-# print("boundary error done!!!")
+boundary_error()
+print("boundary error done!!!")
