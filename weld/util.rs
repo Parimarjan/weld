@@ -12,7 +12,7 @@ use super::ast::ExprKind::*;
 pub const WELD_INLINE_LIB: &'static [u8] = include_bytes!("../weld_rt/cpp/inline.bc");
 const WELD_HOME: &'static str = "WELD_HOME";
 pub const NVPTX_LIBDEVICE_LIB: &'static [u8] =
-                include_bytes!("/usr/local/cuda-8.0/nvvm/libdevice/libdevice.compute_20.10.bc");
+                include_bytes!("/usr/local/cuda-8.0/nvvm/libdevice/libdevice.compute_50.10.bc");
 
 /// Utility struct that can track and generate unique IDs and symbols for use in an expression.
 /// Each SymbolGenerator tracks the maximum ID used for every symbol name, and can be used to

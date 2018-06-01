@@ -191,20 +191,21 @@ pub fn compile_module_nvptx(
 
         // Parse the bytecode file and link it.
         let start = PreciseTime::now();
-        //if let Some(s) = bc_file {
-            //let bc_module = parse_module_bytes(context, s)?;
-            //debug!("Done parsing bytecode file");
+        if let Some(s) = bc_file {
+            let bc_module = parse_module_bytes(context, s)?;
+            debug!("Done parsing bytecode file");
             //llvm::linker::LLVMLinkModules2(module, bc_module);
             //NVVMLinkModulesWrapper(module, bc_module);
-            //println!("going to call the nvvm link modules wrapper");
-            //NVVMLinkModulesWrapper(bc_module, module);
-            //debug!("Done linking bytecode file");
-            //println!("Done linking bytecode file with libdevice!!!!!");
-        //}
-        //let end = PreciseTime::now();
+            println!("going to call the nvvm link modules wrapper");
+            NVVMLinkModulesWrapper(bc_module, module);
+            debug!("Done linking bytecode file");
+            println!("Done linking bytecode file with libdevice!!!!!");
+        }
+        let end = PreciseTime::now();
         timing.times.push(("Bytecode Linking".to_string(), start.to(end)));
 
         // Validate the module
+        println!("validating module");
         let start = PreciseTime::now();
         verify_module(module)?;
         // TODO: check_kernel_function here.
@@ -214,6 +215,7 @@ pub fn compile_module_nvptx(
         debug!("Done validating module");
 
         // Optimize the module.
+        println!("Optimizing the module");
         let start = PreciseTime::now();
         optimize_module_nvptx(module, optimization_level)?;
         let end = PreciseTime::now();
@@ -486,7 +488,7 @@ unsafe fn optimize_module_nvptx(module: LLVMModuleRef, optimization_level: u32)
     pmb::LLVMPassManagerBuilderDispose(builder);
 
     // FIXME: how to create reflect pass??
-    //NVVMReflectPass(manager);
+    NVVMReflectPass(manager);
     //NVVMReflectPass(manager);
 
     llvm::core::LLVMRunPassManager(manager, module);
