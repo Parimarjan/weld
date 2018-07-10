@@ -16,6 +16,7 @@
     * CUDA (tested with version 8.0)
         * set environment variable CUDA_PATH to point to the base installation
         directory. On dawn this is, ``/usr/local/cuda-8.0''
+	* set environment variable LD_LIBRARY_PATH to point to ``/usr/local/cuda-8.0/lib64''
     * pytest (for python based tests)
 * We write (and clean up) temporary compilation files to /etc/
 * WELD_HOME environment variable should be set up
@@ -23,7 +24,7 @@
 * Note: To run the NVVM code, ``NVVM_FLAG`` in weld/llvm.rs should be true
 
 ```bash
-cd python/weldnumpy
+cd python/numpy
 pytest tests-gpu.py
 ```
 

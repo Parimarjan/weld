@@ -242,7 +242,8 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     stats.weld_times.push(("LLVM Codegen".to_string(), start.to(end)));
 
     // FIXME: temporary.
-    let f2 = File::create("/lfs/1/pari/weld-kernel.ll").expect("Unable to create file");
+    let mut weld_kernel_path: String = get_weld_home().unwrap().to_owned() + &"/weld-kernel.ll";
+    let f2 = File::create(weld_kernel_path).expect("Unable to create file");
     let mut f2 = BufWriter::new(f2);
     let f2_code = format!("{}", llvm_code);
     f2.write_all(f2_code.as_bytes()).expect("Unable to write data");
