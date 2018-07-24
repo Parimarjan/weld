@@ -24,6 +24,14 @@ use std::ffi::{CStr, CString};
 use common::WeldRuntimeErrno;
 use common::WeldLogLevel;
 
+use llvm::NVVM_FLAG;
+#[no_mangle]
+pub extern "C" fn weld_set_nvvm(nvvm_flag: bool) {
+    unsafe {
+        NVVM_FLAG = nvvm_flag;
+    }
+}
+
 /// Utility macro to create an Err result with a WeldError from a format string.
 #[macro_export]
 macro_rules! weld_err {

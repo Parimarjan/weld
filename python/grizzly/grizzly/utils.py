@@ -91,6 +91,7 @@ def group_eval(objs, passes=None):
     return pd_results
 
 def group(exprs):
+    print("in group")
     weld_type = [to_weld_type(expr.weld_type, expr.dim) for expr in exprs]
     exprs = [expr.expr for expr in exprs]
     weld_obj = WeldObject(grizzly_impl.encoder_, grizzly_impl.decoder_)
@@ -103,5 +104,10 @@ def group(exprs):
     weld_obj.weld_code = "{%s}" % ", ".join(expr_names)
     for expr in exprs:
         weld_obj.dependencies[expr.obj_id] = expr
+
+    print("returning from group, code is: ")
+    print(weld_obj.weld_code)
+    print("dependencies are: ")
+    print(weld_obj.dependencies)
 
     return LazyOpResult(weld_obj, weld_type, dim)

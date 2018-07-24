@@ -49,6 +49,7 @@ def blackscholes(price, strike, t, rate, vol, intermediate_eval, use_group):
     rsig = rate + (vol*vol) * c05
     vol_sqrt = vol * np.sqrt(t)
 
+    # FIXME: uncomment
     d1 = (np.log(price / strike) + rsig * t) / vol_sqrt
     d2 = d1 - vol_sqrt
 
@@ -56,9 +57,9 @@ def blackscholes(price, strike, t, rate, vol, intermediate_eval, use_group):
     # get routed through the common ufunc routing mechanism, so these work just
     # fine on weld arrays.
     # original:
-    d1 = c05 + c05 * ss.erf(d1 * invsqrt2)
-    d2 = c05 + c05 * ss.erf(d2 * invsqrt2)
-
+    # FIXME: Need to uncomment these
+    # d1 = c05 + c05 * ss.erf(d1 * invsqrt2)
+    # d2 = c05 + c05 * ss.erf(d2 * invsqrt2)
     e_rt = np.exp((0.0-rate) * t)
 
     # An alternative to using the group operator is to manually evaluate all
@@ -67,24 +68,23 @@ def blackscholes(price, strike, t, rate, vol, intermediate_eval, use_group):
     # certain optimizations that weld could when using the group operator.
 
     if isinstance(price, weldarray) and intermediate_eval:
-        price = price.evaluate()
         d1 = d1.evaluate()
         d2 = d2.evaluate()
         e_rt = e_rt.evaluate()
-        strike = strike.evaluate()
 
-    call = (price * d1) - (e_rt * strike * d2)
-    # put original.
-    put = e_rt * strike * (c10 - d2) - price * (c10 - d1)
+    # FIXME: original lines.
+    # call = (price * d1) - (e_rt * strike * d2)
+    # put = e_rt * strike * (c10 - d2) - price * (c10 - d1)
 
-    # tmp testing: something with commutativity
-    # put = e_rt * strike * (d2 - c10) - price * (d1 - c10)
+    call = price * strike
+    put = c10*strike
 
     # the group operator! This essentially does the same thing as the
     # intermediate evaluation option used above - it avoids recomputions.
     if isinstance(call, weldarray) and use_group:
         lazy_ops = generate_lazy_op_list([call, put])
         #outputs = gr.group(lazy_ops).evaluate(True, passes=wn.CUR_PASSES)
+        print("before calling group evaluate")
         outputs = gr.group(lazy_ops).evaluate(True)
 
         call = weldarray(outputs[0])
@@ -148,16 +148,19 @@ if __name__ == '__main__':
                         help="use numpy or not in this run")
     parser.add_argument('-weld', "--use_weld", type=int, required=False, default=1,
                         help="use weld or not in this run")
+    parser.add_argument('-gpu', "--use_gpu", type=int, required=False,
+            default=0, help="use weld's gpu backend or not in this run")
 
     args = parser.parse_args()
 
     if args.use_numpy:
         call, put = run_blackscholes(args, False)
-        print("*********Finished Numpy**********")
+        # print("*********Finished Numpy**********")
     else:
         print('Not running numpy')
 
     if args.use_weld:
+        wn.set_nvvm(0)
         call2, put2 = run_blackscholes(args, True)
     else:
         print('Not running weld')
@@ -166,7 +169,29 @@ if __name__ == '__main__':
     if args.use_numpy and args.use_weld:
         print("Using np.allclose to compare results of NumPy and Weld for put: ",
                 np.allclose(put, put2.view(np.ndarray)))
-        print("norm of put: ", np.linalg.norm(put2.view(np.ndarray)))
-        print("norm between puts: ", np.linalg.norm(put - put2.view(np.ndarray)))
         print("Using np.allclose to compare results of NumPy and Weld for call: ",
                 np.allclose(call, call2.view(np.ndarray)))
+        # print("norm of put: ", np.linalg.norm(put2.view(np.ndarray)))
+        # print("norm between puts: ", np.linalg.norm(put - put2.view(np.ndarray)))
+
+    if args.use_gpu:
+        wn.set_nvvm(1)
+        args.use_weld = 1
+        call3, put3 = run_blackscholes(args, True)
+    else:
+        print('Not running weld gpu')
+
+    if args.use_numpy and args.use_gpu:
+        print("Using np.allclose to compare results of NumPy and Weld-GPU for call: ",
+                np.allclose(call, call3.view(np.ndarray)))
+        for i in range(len(call)):
+            if (call[i] != call3[i]):
+                print("****")
+                print(call[i])
+                print(call3[i])
+
+    if args.use_gpu and args.use_weld:
+        print("Using np.allclose to compare results of Weld-GPU and Weld for call: ",
+                np.allclose(call2, call3.view(np.ndarray)))
+
+

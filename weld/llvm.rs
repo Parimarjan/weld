@@ -86,7 +86,7 @@ pub struct LlvmVecInfo {
     pub el_type: String,
 }
 
-static NVVM_FLAG :bool = true;
+pub static mut NVVM_FLAG :bool = true;
 
 /// The default grain size for the parallel runtime.
 static DEFAULT_INNER_GRAIN_SIZE: i32 = 16384;
@@ -140,8 +140,11 @@ pub fn apply_opt_passes(expr: &mut TypedExpr,
                         stats: &mut CompilationStats,
                         use_experimental: bool) -> WeldResult<()> {
     for pass in opt_passes {
-        if pass.pass_name() == "vectorize" && NVVM_FLAG {
-            continue;
+        unsafe {
+            //if pass.pass_name() == "vectorize" && NVVM_FLAG {
+            if pass.pass_name() == "vectorize" {
+                continue;
+            }
         }
 
         let start = PreciseTime::now();
@@ -203,6 +206,11 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     stats.weld_times.push(("Uniquify outside Passes".to_string(), uniquify_dur));
 
     debug!("Optimized Weld program:\n{}\n", print_expr(&expr));
+
+    let weld_file = File::create("/lfs/1/pari/weld-kernel.weld").expect("Unable to create file");
+    let mut weld_file = BufWriter::new(weld_file);
+    let weld_file_code = format!("{}", print_expr(&expr));
+    weld_file.write_all(weld_file_code.as_bytes()).expect("Unable to write data");
 
     let start = PreciseTime::now();
     let mut sir_prog = sir::ast_to_sir(&expr, conf.support_multithread)?;
@@ -4248,7 +4256,14 @@ impl LlvmGenerator {
 
             ParallelFor(ref pf) => {
                 // TODO: Choose to generate gpu function v/s cpu
-                if NVVM_FLAG {
+                let mut nvvm_flag: bool = false;
+                unsafe {
+                    if NVVM_FLAG {
+                        nvvm_flag = true;
+                    }
+                }
+
+                if nvvm_flag {
                     self.gen_par_for_functions_nvvm(pf, sir, &sir.funcs[pf.body])?;
                     let mut arg_types = String::new();
                     for (arg, ty) in (&sir.funcs[pf.body].params).iter() {
@@ -4854,7 +4869,9 @@ impl LlvmGenerator {
          * to weld_ptx_execute. Thus they need to be in the same order as they
          * are passed in to weld functions so the ptx code we generated would
          * be appropriate to run on these input arguments */
-        for (i, (arg, ty)) in func.params.iter().enumerate() {
+        let mut i = 0;
+        for (j, (arg, ty)) in func.params.iter().enumerate() {
+            println!("gen nvvm wrapper func loop, i = {}", i);
             /* we only want to pass the vectors from the parameters as arguments to
              * weld_ptx_execute. These correspond to the elements in par_for.data  */
             // TODO: this pattern is being used at least three times, find a
@@ -4921,6 +4938,8 @@ impl LlvmGenerator {
                                  inner_elem_size, num_elements));
             ctx.code.add(format!("store i64 {}, i64 *{}", array_size,
                                  cur_input_size_ptr));
+            // TMP: FIXME.
+            i += 1;
         };
 
         let i8_input_args_ptr = ctx.var_ids.next();
