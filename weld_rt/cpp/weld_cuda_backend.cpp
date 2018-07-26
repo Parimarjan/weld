@@ -115,7 +115,6 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
     checkCudaErrors(cuMemAlloc(&dev_output, input_args[0].size));
     CUdeviceptr dev_inputs[num_args];
     for (int i = 0; i < num_args; i++) {
-        printf("copying input %d, of size %d\n", i, input_args[i].size);
         checkCudaErrors(cuMemAlloc(&dev_inputs[i], input_args[i].size));
         checkCudaErrors(cuMemcpyHtoD(dev_inputs[i], input_args[i].data, input_args[i].size));
     }
@@ -169,7 +168,6 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
 // FIXME: maybe we don't need a separate function for this.
 extern "C" void weld_copy_dtoh(int8_t *host, int8_t *dev, int size) {
     // Retrieve device data
-    printf("copying DtoH, size: %d\n", size);
     checkCudaErrors(cuMemcpyDtoH(host, (CUdeviceptr) dev, size));
     checkCudaErrors(cuMemFree((CUdeviceptr) dev));
 };

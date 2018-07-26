@@ -182,3 +182,12 @@ def test_inplace_2():
 
         assert (np.allclose(n1, w1.view(np.ndarray)))
 
+def test_nvvm_flag():
+    '''
+    temporary test.
+    '''
+    wn.set_nvvm(1)
+    n1, w1 = random_arrays(NUM_ELS, np.float64)
+    w1 = np.exp(w1)
+    w1 = w1.evaluate()
+

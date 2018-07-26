@@ -180,3 +180,9 @@ def weld_set_log_level(log_level):
         5 = Trace.
      """
      weld.weld_set_log_level(log_level)
+
+def weld_set_nvvm(nvvm_flag):
+    """
+    Sets weld's nvvm flag to true or false
+    """
+    weld.weld_set_nvvm(nvvm_flag)

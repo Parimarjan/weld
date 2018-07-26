@@ -3,12 +3,16 @@ import scipy.special as ss
 from weld.types import *
 from distutils.version import StrictVersion
 assert StrictVersion(np.__version__) >= StrictVersion('1.13')
+from weld.bindings import weld_set_nvvm
 
 ALL_PASSES = ["loop-fusion", "infer-size", "short-circuit-booleans",
         "predicate", "vectorize", "fix-iterate"]
 CUR_PASSES = ALL_PASSES
 offload_setitem = True
 MAX_REGISTERED_OPS = 100
+
+def set_nvvm(nvvm_flag):
+    weld_set_nvvm(nvvm_flag)
 
 class weldarray_view():
     '''
