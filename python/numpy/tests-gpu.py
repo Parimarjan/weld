@@ -27,6 +27,7 @@ def random_arrays(shape, dtype):
     return np_test, w
 
 def test_simple():
+    wn.set_nvvm(1)
     for t in TYPES:
         _, w1 = random_arrays(NUM_ELS, t)
         _, w2 = random_arrays(NUM_ELS, t)
@@ -191,3 +192,4 @@ def test_nvvm_flag():
     w1 = np.exp(w1)
     w1 = w1.evaluate()
 
+test_simple()

@@ -51,6 +51,13 @@ use std::fs::File;
 use std::io::{BufWriter};
 use super::util::get_weld_home;
 
+fn write_to_file(filename: &str, code: &str) {
+    let f = File::create(filename).expect("Unable to create file");
+    let mut f = BufWriter::new(f);
+    let f_code = format!("{}", code);
+    f.write_all(f_code.as_bytes()).expect("Unable to write data");
+}
+
 static PRELUDE_CODE: &'static str = include_str!("resources/prelude.ll");
 
 
@@ -194,9 +201,7 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     debug!("After type inference:\n{}\n", print_typed_expr(&expr));
     stats.weld_times.push(("Type Inference".to_string(), start.to(end)));
 
-    //println!("before opt passes\n{}", print_typed_expr(&expr));
     apply_opt_passes(&mut expr, &conf.optimization_passes, stats, conf.enable_experimental_passes)?;
-    //println!("after opt passes\n{}", print_typed_expr(&expr));
 
     let start = PreciseTime::now();
     uniquify::uniquify(&mut expr)?;
@@ -206,11 +211,8 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     stats.weld_times.push(("Uniquify outside Passes".to_string(), uniquify_dur));
 
     debug!("Optimized Weld program:\n{}\n", print_expr(&expr));
-
-    let weld_file = File::create("/lfs/1/pari/weld-kernel.weld").expect("Unable to create file");
-    let mut weld_file = BufWriter::new(weld_file);
-    let weld_file_code = format!("{}", print_expr(&expr));
-    weld_file.write_all(weld_file_code.as_bytes()).expect("Unable to write data");
+    // FIXME: tmp writing to file for debugging.
+    write_to_file("/lfs/1/pari/weld-kernel.weld", &format!("{}", print_expr(&expr)));
 
     let start = PreciseTime::now();
     let mut sir_prog = sir::ast_to_sir(&expr, conf.support_multithread)?;
@@ -229,6 +231,7 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     let end = PreciseTime::now();
     debug!("Optimized SIR program:\n{}\n", &sir_prog);
     stats.weld_times.push(("SIR Optimization".to_string(), start.to(end)));
+    write_to_file("/lfs/1/pari/weld-kernel.sir", &format!("{}", &sir_prog));
 
     let start = PreciseTime::now();
     let mut gen = LlvmGenerator::new();
@@ -250,10 +253,7 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
     stats.weld_times.push(("LLVM Codegen".to_string(), start.to(end)));
 
     // FIXME: temporary.
-    let f2 = File::create("/lfs/1/pari/weld-kernel.ll").expect("Unable to create file");
-    let mut f2 = BufWriter::new(f2);
-    let f2_code = format!("{}", llvm_code);
-    f2.write_all(f2_code.as_bytes()).expect("Unable to write data");
+    write_to_file("/lfs/1/pari/weld-kernel.ll", &format!("{}", llvm_code));
 
     let ref timestamp = format!("{}", time::now().to_timespec().sec);
 
@@ -1688,7 +1688,6 @@ impl LlvmGenerator {
                                       par_for: &ParallelForData,
                                       sir: &SirProgram) -> WeldResult<()> {
             let mut ctx = &mut FunctionContext::new(false);
-
             ctx.code.add(format!("%cur.tid = call i32 @weld_rt_thread_id()"));
             self.gen_unload_arg_struct(&sir.funcs[par_for.cont].params, ".load", &mut ctx)?;
             self.gen_store_args(&sir.funcs[par_for.cont].params, ".load", "", &mut ctx)?;
@@ -4266,6 +4265,7 @@ impl LlvmGenerator {
                 if nvvm_flag {
                     self.gen_par_for_functions_nvvm(pf, sir, &sir.funcs[pf.body])?;
                     let mut arg_types = String::new();
+                    // TODO: explain why do we need to do args in this order as compared to llvm.
                     for (arg, ty) in (&sir.funcs[pf.body].params).iter() {
                         let ll_ty = self.llvm_type(&ty)?;
                         let arg_tmp = self.gen_load_var(llvm_symbol(arg).as_str(), &ll_ty, ctx)?;
@@ -4289,6 +4289,11 @@ impl LlvmGenerator {
                        like nested for loops, in which the results were passed
                        on to a next function */
                     ctx.code.add(format!("call void @f{}({}, i32 %cur.tid)", pf.body, arg_types));
+                    self.gen_top_level_function(sir, &sir.funcs[pf.cont]);
+                    // call the newly generated function
+                    let cont_arg_types = self.get_arg_str(&sir.funcs[pf.cont].params, "")?;
+                    ctx.code.add(format!("call void @f{}({}, i32 %cur.tid)", pf.cont, cont_arg_types));
+
                 } else {
                     let params_sorted = get_combined_params(sir, pf);
                     let mut arg_types = String::new();
@@ -4774,7 +4779,6 @@ impl LlvmGenerator {
         self.gen_nvvm_wrapper_func(par_for, func, ctx, ptx_ops, reduction);
         self.gen_nvvm_kernel(par_for, sir, func, ctx, ptx_ops, reduction);
 
-        self.body_code.add("; gonna dump all the nvvm wrapper ctx stuff now");
         self.body_code.add(&ctx.alloca_code.result());
         self.body_code.add(&ctx.code.result());
 
@@ -4870,8 +4874,7 @@ impl LlvmGenerator {
          * are passed in to weld functions so the ptx code we generated would
          * be appropriate to run on these input arguments */
         let mut i = 0;
-        for (j, (arg, ty)) in func.params.iter().enumerate() {
-            println!("gen nvvm wrapper func loop, i = {}", i);
+        for (arg, ty) in func.params.iter() {
             /* we only want to pass the vectors from the parameters as arguments to
              * weld_ptx_execute. These correspond to the elements in par_for.data  */
             // TODO: this pattern is being used at least three times, find a
