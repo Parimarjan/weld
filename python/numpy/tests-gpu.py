@@ -27,7 +27,6 @@ def random_arrays(shape, dtype):
     return np_test, w
 
 def test_simple():
-    wn.set_nvvm(1)
     for t in TYPES:
         _, w1 = random_arrays(NUM_ELS, t)
         _, w2 = random_arrays(NUM_ELS, t)
@@ -37,6 +36,7 @@ def test_simple():
         w3 = w1 + w2
         w3 = np.exp(w3)
         w3 = w3.evaluate()
+        print(w3)
 
 def test_cmp():
     for t in TYPES:
@@ -48,7 +48,7 @@ def test_cmp():
         # n3 = np.sin(n3)
         # w3 = np.sin(w3)
         w3 = w3.evaluate()
-
+        print(w3)
         assert (np.allclose(n3, w3.view(np.ndarray)))
 
 def test_blackscholes_bug1():
@@ -192,4 +192,16 @@ def test_nvvm_flag():
     w1 = np.exp(w1)
     w1 = w1.evaluate()
 
+wn.set_nvvm(1)
 test_simple()
+test_cmp()
+
+# test_simple_unary()
+# test_dot_product()
+# test_inplace_simple()
+# test_inplace_2()
+# test_boundary_error()
+# test_cmp()
+# test_blackscholes_bug_commutativity()
+# test_blackscholes_bug1()
+

@@ -1,17 +1,16 @@
 #include <iostream>
 #include <fstream>
 #include <cassert>
-//#include "cuda.h"
-//#include "cuda/cuda.h"
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <unistd.h>
 #include <thread>
 //#include <stdlib.h>
-//#include <stdio.h>
+#include <stdio.h>
 #include <math.h>
 #include <sys/time.h>
 #include <time.h>
+#include <string.h>
 
 #define THREAD_BLOCK_SIZE 512
 
@@ -51,14 +50,16 @@ void print_vals(ptx_arg input) {
  * TODO: update.
  * @arg1:
  * @num_args: number of elements in the host arrays and output.
- * @arg2: pointer to the output array since this does not need to be a ptx_arg struct.
  *
  * @ret: pointer to the cuda allocated output array.
  */
 //extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args, void *arg2)
-extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
+extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args, char *ptx_name, int file_name_len)
 {
     /* FIXME: need to make sure arg2 is converted to appropriate form on both sides etc. */
+    char trunc_ptx_name[50];
+    snprintf(trunc_ptx_name, file_name_len+1, "%s", ptx_name);
+
     ptx_arg *input_args = (ptx_arg *) arg1;
     /* FIXME */
     int size = input_args[0].size;
@@ -88,9 +89,9 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
     }
 
     // TODO: this string should be passed in.
-    std::ifstream t("/tmp/kernel.ptx");
+    std::ifstream t((char *)trunc_ptx_name);
     if (!t.is_open()) {
-        printf("kernel.ptx not found!\n");
+        printf("%s not found!\n", (char *) trunc_ptx_name);
         exit(0);
     }
     std::string str((std::istreambuf_iterator<char>(t)),
@@ -154,7 +155,7 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args)
         checkCudaErrors(cuMemFree(dev_inputs[i]));
     }
     checkCudaErrors(cuModuleUnload(cudaModule));
-    remove("/tmp/kernel.ptx");
+    remove((char *) trunc_ptx_name);
 
     // Note: we copy dev_output back to host memory later (so we can potentially act on it in gpu
     // memory, e.g., by passing it to thrust). Thus we don't free these here.
