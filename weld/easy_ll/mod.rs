@@ -16,7 +16,7 @@ use std::sync::{Once, ONCE_INIT};
 use std::ptr;
 
 use self::llvm::support::LLVMLoadLibraryPermanently;
-use self::llvm::prelude::{LLVMContextRef, LLVMModuleRef, LLVMMemoryBufferRef};
+use self::llvm::prelude::{LLVMContextRef, LLVMModuleRef, LLVMMemoryBufferRef, LLVMPassManagerRef};
 use self::llvm::execution_engine::{LLVMExecutionEngineRef, LLVMMCJITCompilerOptions, LLVMGetExecutionEngineTargetMachine};
 
 use self::llvm::target_machine::{LLVMCodeGenFileType, LLVMTargetMachineEmitToMemoryBuffer};

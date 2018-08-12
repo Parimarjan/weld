@@ -5,7 +5,9 @@ use easy_ll;
 
 extern crate time;
 extern crate fnv;
+extern crate libc;
 
+use libc::c_char;
 use time::PreciseTime;
 
 use common::WeldRuntimeErrno;
@@ -14,6 +16,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::fs::OpenOptions;
 use std::ascii::AsciiExt;
+use std::ffi::CString;
 
 use super::ast::*;
 use super::ast::Type::*;
@@ -50,6 +53,11 @@ use super::parser::*;
 use std::fs::File;
 use std::io::{BufWriter};
 use super::util::get_weld_home;
+
+#[link(name = "ptxgen")]
+extern {
+    fn link_libdevice(kernel_str: *const c_char) -> ();
+}
 
 static PRELUDE_CODE: &'static str = include_str!("resources/prelude.ll");
 
@@ -4641,13 +4649,17 @@ impl LlvmGenerator {
             let code :String = format!(";PRELUDE\n{}\n{}\n{}\n",
                                        nvvm_prelude_code.result(),gpu_ctx.alloca_code.result(),
                                        gpu_ctx.code.result());
-			let mut kernel_file: String = "/tmp/kernel.ll".to_owned();
+
+	    // let mut kernel_file: String = "/tmp/kernel.ll".to_owned();
 
             let start = PreciseTime::now();
-            let f = File::create(kernel_file).expect("Unable to create file");
-            let mut f = BufWriter::new(f);
-            f.write_all(code.as_bytes()).expect("Unable to write data");
+            // let f = File::create(kernel_file).expect("Unable to create file");
+            // let mut f = BufWriter::new(f);
+            // f.write_all(code.as_bytes()).expect("Unable to write data");
 
+            let code_ptr  = CString::new(code).unwrap();
+
+            unsafe{ link_libdevice(code_ptr.as_ptr()) };
             /* Compile the kernel to ptx code. */
             // TODO: compile it, and then save the compiled ptx string
             // somewhere so don't recompile it?
