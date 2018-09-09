@@ -5,7 +5,7 @@
 #include <cuda_runtime.h>
 #include <unistd.h>
 #include <thread>
-//#include <stdlib.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include <sys/time.h>
@@ -13,6 +13,7 @@
 #include <string.h>
 
 #define THREAD_BLOCK_SIZE 512
+#define BATCH_SIZE_POWER 27
 
 void checkCudaErrors(CUresult err) {
   if (err != CUDA_SUCCESS) {
@@ -31,8 +32,6 @@ void checkCudaErrors(CUresult err) {
 typedef struct ptx_arg {
     // FIXME: type of this should not affect anything.
     uint8_t *data;
-    //int32_t size;
-    //int32_t num_elements;
     int64_t size;
     int64_t num_elements;
 } ptx_arg;
@@ -53,7 +52,6 @@ void print_vals(ptx_arg input) {
  *
  * @ret: pointer to the cuda allocated output array.
  */
-//extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args, void *arg2)
 extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args, char *ptx_name, int file_name_len)
 {
     /* FIXME: need to make sure arg2 is converted to appropriate form on both sides etc. */
@@ -115,9 +113,32 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args, char *ptx_name
     /* FIXME: this should not be based on input args */
     checkCudaErrors(cuMemAlloc(&dev_output, input_args[0].size));
     CUdeviceptr dev_inputs[num_args];
+
+    /* Streaming stuff */
+    int total_vals = input_args[0].num_elements;
+    printf("total vals = %d\n", total_vals);
+    int max_memory_elements = pow(2, 28);
+    int elem_size = input_args[0].size / input_args[0].num_elements;
+    printf("elem size = %d\n", elem_size);
+    if (max_memory_elements > total_vals) max_memory_elements = total_vals;
+    int batch_vals = pow(2, BATCH_SIZE_POWER);
+    if (batch_vals > max_memory_elements) batch_vals = max_memory_elements;
+
+    int num_chunks = ceil(total_vals / batch_vals);
+    int num_streams = ceil(max_memory_elements / batch_vals);
+    printf("num streams = %d\n", num_streams);
+    CUstream * streams = new CUstream[num_streams];
+    for (int i = 0; i < num_streams; i++) {
+        cuStreamCreate(&streams[i], CU_STREAM_DEFAULT);
+    }
+
     for (int i = 0; i < num_args; i++) {
-        checkCudaErrors(cuMemAlloc(&dev_inputs[i], input_args[i].size));
-        checkCudaErrors(cuMemcpyHtoD(dev_inputs[i], input_args[i].data, input_args[i].size));
+        // FIXME: should this be batch_vals instead?
+        checkCudaErrors(cuMemAlloc(&dev_inputs[i], max_memory_elements*
+                    (input_args[i].size / input_args[i].num_elements)));
+
+        // TODO: do this later in a loop.
+        //checkCudaErrors(cuMemcpyHtoD(dev_inputs[i], input_args[i].data, input_args[i].size));
     }
 
     /* FIXME: be more flexible about dimensions? */
@@ -129,23 +150,65 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args, char *ptx_name
     unsigned gridSizeX  = (size_t) ceil((float) input_args[0].num_elements / (float) THREAD_BLOCK_SIZE);
     unsigned gridSizeY  = 1;
     unsigned gridSizeZ  = 1;
-
     void *kernel_params[num_args + 1];
-    for (int i = 0; i < num_args; i++) {
-        kernel_params[i] = (void *) &dev_inputs[i];
+
+    printf("batch vals*elem_size = %d\n", batch_vals*elem_size);
+    printf("input size: %d\n", input_args[0].size);
+    /* copy in the inputs for each chunk and launch kernel */
+    for (int i = 0; i < num_chunks; i++) {
+        int stream_index = i % num_streams;
+        printf("chunk = %d\n", i);
+        printf("stream index = %d\n", stream_index);
+        // offset into the cpu arrays
+        int offset = i * batch_vals;
+        // offset into the gpu arrays
+        int gpu_offset = offset % max_memory_elements;
+        printf("gpu offset = %d\n", gpu_offset);
+        printf("it should usually be 0 right?\n");
+
+        // FIXME: need to copy the chunk from each of the inputs
+        //checkCudaErrors(cuMemcpyHtoDAsync((CUdeviceptr ) &((double *) &dev_inputs[i])[gpu_offset], &input_args[i].data[offset], batch_vals*elem_size, streams[stream_index]));
+
+        for (int j = 0; j < num_args; j++) {
+            // TODO: correct way
+            printf("copying element %d\n", j);
+            checkCudaErrors(cuMemcpyHtoDAsync(dev_inputs[j], &(input_args[j].data[offset*elem_size]), batch_vals*elem_size, streams[stream_index]));
+            //printf("dev_inputs[j] = %d\n", (int ) dev_inputs[j]);
+            //checkCudaErrors(cuMemcpyHtoDAsync(dev_inputs[j], input_args[j].data, batch_vals*elem_size, streams[stream_index]));
+
+            printf("element %d copied successfully\n", j);
+            kernel_params[j] = (void *) &dev_inputs[j];
+        }
+        printf("copy successful\n");
+        // TODO: need to set the correct offset in dev_output.
+        kernel_params[num_args] = (void *) &dev_output;
+        // TODO: in general should be this.
+        // FIXME: this doesn't seem to have enough levels of indirection
+        //kernel_params[num_args] = (void *) &(((double *)dev_output)[gpu_offset]);
+
+        printf("going to launch kernel!!\n");
+        struct timeval start, end, diff;
+        gettimeofday(&start, NULL);
+        checkCudaErrors(cuLaunchKernel(function, gridSizeX, gridSizeY, gridSizeZ,
+                                 blockSizeX, blockSizeY, blockSizeZ,
+                                 0, streams[stream_index], kernel_params, NULL));
+        printf("kernel call successful!\n");
+        // TODO: does it need any synchronize call here?
+        gettimeofday(&end, NULL);
+        timersub(&end, &start, &diff);
+        printf("GPU-Kernel-Timing: %ld.%06ld\n", diff.tv_sec, diff.tv_usec);
     }
-    kernel_params[num_args] = (void *) &dev_output;
 
     //// Kernel launch
-    struct timeval start, end, diff;
-    gettimeofday(&start, NULL);
-    checkCudaErrors(cuLaunchKernel(function, gridSizeX, gridSizeY, gridSizeZ,
-                             blockSizeX, blockSizeY, blockSizeZ,
-                             0, NULL, kernel_params, NULL));
-    // TODO: does it need any synchronize call here?
-    gettimeofday(&end, NULL);
-    timersub(&end, &start, &diff);
-    printf("GPU-Kernel-Timing: %ld.%06ld\n", diff.tv_sec, diff.tv_usec);
+    //struct timeval start, end, diff;
+    //gettimeofday(&start, NULL);
+    //checkCudaErrors(cuLaunchKernel(function, gridSizeX, gridSizeY, gridSizeZ,
+                             //blockSizeX, blockSizeY, blockSizeZ,
+                             //0, NULL, kernel_params, NULL));
+    //// TODO: does it need any synchronize call here?
+    //gettimeofday(&end, NULL);
+    //timersub(&end, &start, &diff);
+    //printf("GPU-Kernel-Timing: %ld.%06ld\n", diff.tv_sec, diff.tv_usec);
 
     // Retrieve device data
     //checkCudaErrors(cuMemcpyDtoH(output, dev_output, size));

@@ -3,9 +3,12 @@ from weldnumpy import weldarray
 import numpy as np
 import py.test
 
+import grizzly.grizzly as gr
+from grizzly.lazy_op import LazyOpResult
 # FIXME: int's seem to be failing roughly half the tests..
 TYPES = [np.float64]
-NUM_ELS = 10
+NUM_ELS = 2**25
+# NUM_ELS = 1000
 
 def random_arrays(shape, dtype):
     '''
@@ -32,11 +35,9 @@ def test_simple():
         _, w2 = random_arrays(NUM_ELS, t)
         # w1 = wn.random.rand(10)
         # w2 = wn.random.rand(10)
-        print(w1)
         w3 = w1 + w2
         w3 = np.exp(w3)
         w3 = w3.evaluate()
-        print(w3)
 
 def test_cmp():
     for t in TYPES:
@@ -48,7 +49,6 @@ def test_cmp():
         # n3 = np.sin(n3)
         # w3 = np.sin(w3)
         w3 = w3.evaluate()
-        print(w3)
         assert (np.allclose(n3, w3.view(np.ndarray)))
 
 def test_blackscholes_bug1():
@@ -192,10 +192,46 @@ def test_nvvm_flag():
     w1 = np.exp(w1)
     w1 = w1.evaluate()
 
-wn.set_nvvm(1)
-test_simple()
-test_cmp()
+def generate_lazy_op_list(arrays):
+    '''
+    Slightly hacky way to match the group operator syntax.
+    '''
+    ret = []
+    for a in arrays:
+        lazy_arr = LazyOpResult(a.weldobj, a._weld_type, 1)
+        ret.append(lazy_arr)
+    return ret
 
+def test_simple_group():
+    pass
+
+def test_group_reuse_computation():
+    for t in TYPES:
+        n1, w1 = random_arrays(NUM_ELS, t)
+        n2, w2 = random_arrays(NUM_ELS, t)
+        n3, w3 = random_arrays(NUM_ELS, t)
+        n1 = np.exp(n1)
+        w1 = np.exp(w1)
+
+        n2 = n1 + n2
+        w2 = w1 + w2
+        n3 = n1*n3
+        w3 = w1*w3
+
+        lazy_ops = generate_lazy_op_list([w2, w3])
+        #outputs = gr.group(lazy_ops).evaluate(True, passes=wn.CUR_PASSES)
+        print("before calling group evaluate")
+        outputs = gr.group(lazy_ops).evaluate(True)
+
+    print(outputs[0])
+    print(outputs[1])
+
+    assert (np.allclose(n2, outputs[0].view(np.ndarray)))
+    assert (np.allclose(n3, outputs[1].view(np.ndarray)))
+
+wn.set_nvvm(1)
+# test_simple()
+test_cmp()
 # test_simple_unary()
 # test_dot_product()
 # test_inplace_simple()
@@ -204,4 +240,5 @@ test_cmp()
 # test_cmp()
 # test_blackscholes_bug_commutativity()
 # test_blackscholes_bug1()
+# test_group_reuse_computation()
 
