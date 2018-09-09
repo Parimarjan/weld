@@ -183,11 +183,11 @@ if __name__ == '__main__':
     if args.use_numpy and args.use_gpu:
         print("Using np.allclose to compare results of NumPy and Weld-GPU for call: ",
                 np.allclose(call, call3.view(np.ndarray)))
-        for i in range(len(call)):
-            if (call[i] != call3[i]):
-                print("****")
-                print(call[i])
-                print(call3[i])
+        # for i in range(len(call)):
+            # if (call[i] != call3[i]):
+                # print("****")
+                # print(call[i])
+                # print(call3[i])
 
     if args.use_gpu and args.use_weld:
         print("Using np.allclose to compare results of Weld-GPU and Weld for call: ",

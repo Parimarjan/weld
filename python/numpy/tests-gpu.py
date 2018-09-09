@@ -7,7 +7,7 @@ import grizzly.grizzly as gr
 from grizzly.lazy_op import LazyOpResult
 # FIXME: int's seem to be failing roughly half the tests..
 TYPES = [np.float64]
-NUM_ELS = 2**25
+NUM_ELS = 2**6
 # NUM_ELS = 1000
 
 def random_arrays(shape, dtype):
@@ -43,12 +43,20 @@ def test_cmp():
     for t in TYPES:
         n1, w1 = random_arrays(NUM_ELS, t)
         n2, w2 = random_arrays(NUM_ELS, t)
+        print("orig w1[16]: ")
+        print(w1[16])
+        print(w2[16])
+        # n3 = (n1-n2)*3.0 + 400.00
+        # w3 = (w1-w2)*3.0 + 400.00
 
-        n3 = (n1-n2)*3.0 + 400.00
-        w3 = (w1-w2)*3.0 + 400.00
+        n3 = (n1+n2);
+        w3 = (w1+w2);
+
         # n3 = np.sin(n3)
         # w3 = np.sin(w3)
         w3 = w3.evaluate()
+        print(n3[16])
+        print(w3[16])
         assert (np.allclose(n3, w3.view(np.ndarray)))
 
 def test_blackscholes_bug1():
@@ -230,14 +238,13 @@ def test_group_reuse_computation():
     assert (np.allclose(n3, outputs[1].view(np.ndarray)))
 
 wn.set_nvvm(1)
-# test_simple()
+test_simple()
 test_cmp()
-# test_simple_unary()
+test_simple_unary()
 # test_dot_product()
 # test_inplace_simple()
 # test_inplace_2()
 # test_boundary_error()
-# test_cmp()
 # test_blackscholes_bug_commutativity()
 # test_blackscholes_bug1()
 # test_group_reuse_computation()

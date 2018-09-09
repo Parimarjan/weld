@@ -13,7 +13,7 @@
 #include <string.h>
 
 #define THREAD_BLOCK_SIZE 512
-#define BATCH_SIZE_POWER 27
+#define BATCH_SIZE_POWER 23
 
 void checkCudaErrors(CUresult err) {
   if (err != CUDA_SUCCESS) {
@@ -33,13 +33,13 @@ typedef struct ptx_arg {
     // FIXME: type of this should not affect anything.
     uint8_t *data;
     int64_t size;
-    int64_t num_elements;
+    int64_t num_elems;
 } ptx_arg;
 
 /* debug helper */
 void print_vals(ptx_arg input) {
     printf("printing out vals from given input!\n");
-    for (int i = 0; i < input.num_elements; i++) {
+    for (int i = 0; i < input.num_elems; i++) {
         printf("value at %d = %f;  ", i, (double ) input.data[i]);
     }
     printf("**************************************\n");
@@ -48,7 +48,7 @@ void print_vals(ptx_arg input) {
 /*
  * TODO: update.
  * @arg1:
- * @num_args: number of elements in the host arrays and output.
+ * @num_args: number of elems in the host arrays and output.
  *
  * @ret: pointer to the cuda allocated output array.
  */
@@ -77,7 +77,7 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args, char *ptx_name
 
     char name[128];
     checkCudaErrors(cuDeviceGetName(name, 128, device));
-    printf("Using CUDA device %s\n", name);
+    //printf("Using CUDA device %s\n", name);
 
     int devMajor, devMinor;
     checkCudaErrors(cuDeviceComputeCapability(&devMajor, &devMinor, device));
@@ -115,30 +115,27 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args, char *ptx_name
     CUdeviceptr dev_inputs[num_args];
 
     /* Streaming stuff */
-    int total_vals = input_args[0].num_elements;
-    printf("total vals = %d\n", total_vals);
-    int max_memory_elements = pow(2, 28);
-    int elem_size = input_args[0].size / input_args[0].num_elements;
-    printf("elem size = %d\n", elem_size);
-    if (max_memory_elements > total_vals) max_memory_elements = total_vals;
-    int batch_vals = pow(2, BATCH_SIZE_POWER);
-    if (batch_vals > max_memory_elements) batch_vals = max_memory_elements;
+    int total_num_elems = input_args[0].num_elems;
+    //printf("total vals = %d\n", total_num_elems);
+    int max_memory_elems = pow(2, 26);
+    int elem_size = input_args[0].size / input_args[0].num_elems;
+    //printf("elem size = %d\n", elem_size);
+    if (max_memory_elems > total_num_elems) max_memory_elems = total_num_elems;
+    int batch_num_elems = pow(2, BATCH_SIZE_POWER);
+    if (batch_num_elems > max_memory_elems) batch_num_elems = max_memory_elems;
 
-    int num_chunks = ceil(total_vals / batch_vals);
-    int num_streams = ceil(max_memory_elements / batch_vals);
-    printf("num streams = %d\n", num_streams);
+    int num_chunks = ceil(total_num_elems / batch_num_elems);
+    int num_streams = ceil(max_memory_elems / batch_num_elems);
+    //printf("num chunks = %d\n", num_chunks);
+    //printf("num streams = %d\n", num_streams);
     CUstream * streams = new CUstream[num_streams];
     for (int i = 0; i < num_streams; i++) {
         cuStreamCreate(&streams[i], CU_STREAM_DEFAULT);
     }
 
     for (int i = 0; i < num_args; i++) {
-        // FIXME: should this be batch_vals instead?
-        checkCudaErrors(cuMemAlloc(&dev_inputs[i], max_memory_elements*
-                    (input_args[i].size / input_args[i].num_elements)));
-
-        // TODO: do this later in a loop.
-        //checkCudaErrors(cuMemcpyHtoD(dev_inputs[i], input_args[i].data, input_args[i].size));
+        checkCudaErrors(cuMemAlloc(&dev_inputs[i], batch_num_elems*
+                    (input_args[i].size / input_args[i].num_elems)));
     }
 
     /* FIXME: be more flexible about dimensions? */
@@ -146,53 +143,64 @@ extern "C" int8_t* weld_ptx_execute(void *arg1, int32_t num_args, char *ptx_name
     unsigned blockSizeY = 1;
     unsigned blockSizeZ = 1;
 
-    // TODO: we are implicitly assuming all of same num elements?
-    unsigned gridSizeX  = (size_t) ceil((float) input_args[0].num_elements / (float) THREAD_BLOCK_SIZE);
+    // FIXME: choose between these. I guess we should use batch_num_elems? Also
+    // might need to ad the if condition in the ptx code.
+    //unsigned gridSizeX  = (size_t) ceil((float) input_args[0].num_elems / (float) THREAD_BLOCK_SIZE);
+    unsigned gridSizeX  = (size_t) ceil((float) batch_num_elems / (float) THREAD_BLOCK_SIZE);
     unsigned gridSizeY  = 1;
     unsigned gridSizeZ  = 1;
     void *kernel_params[num_args + 1];
 
-    printf("batch vals*elem_size = %d\n", batch_vals*elem_size);
-    printf("input size: %d\n", input_args[0].size);
+    //printf("batch vals*elem_size = %d\n", batch_num_elems*elem_size);
+    //printf("input size: %d\n", input_args[0].size);
     /* copy in the inputs for each chunk and launch kernel */
     for (int i = 0; i < num_chunks; i++) {
         int stream_index = i % num_streams;
-        printf("chunk = %d\n", i);
-        printf("stream index = %d\n", stream_index);
+        //printf("chunk = %d\n", i);
+        //printf("stream index = %d\n", stream_index);
         // offset into the cpu arrays
-        int offset = i * batch_vals;
+        int offset = i * batch_num_elems;
         // offset into the gpu arrays
-        int gpu_offset = offset % max_memory_elements;
-        printf("gpu offset = %d\n", gpu_offset);
-        printf("it should usually be 0 right?\n");
-
-        // FIXME: need to copy the chunk from each of the inputs
-        //checkCudaErrors(cuMemcpyHtoDAsync((CUdeviceptr ) &((double *) &dev_inputs[i])[gpu_offset], &input_args[i].data[offset], batch_vals*elem_size, streams[stream_index]));
+        int gpu_offset = offset % max_memory_elems;
+        //printf("offset = %d\n", offset);
+        //printf("gpu offset = %d\n", gpu_offset);
 
         for (int j = 0; j < num_args; j++) {
             // TODO: correct way
-            printf("copying element %d\n", j);
-            checkCudaErrors(cuMemcpyHtoDAsync(dev_inputs[j], &(input_args[j].data[offset*elem_size]), batch_vals*elem_size, streams[stream_index]));
-            //printf("dev_inputs[j] = %d\n", (int ) dev_inputs[j]);
-            //checkCudaErrors(cuMemcpyHtoDAsync(dev_inputs[j], input_args[j].data, batch_vals*elem_size, streams[stream_index]));
+            //printf("copying element %d\n", j);
+            int elems_to_copy = 0;
+            int elems_remaining = total_num_elems - offset;
+            if (elems_remaining > batch_num_elems) {
+                //printf("elems to copy = batch num elems\n");
+                elems_to_copy = batch_num_elems;
+            } else {
+                elems_to_copy = elems_remaining;
+            }
+            //printf("elems to copy = %d\n", elems_to_copy);
+            //checkCudaErrors(cuMemcpyHtoDAsync(dev_inputs[j], &(input_args[j].data[offset*elem_size]), elems_to_copy*elem_size, streams[stream_index]));
+            // pointer arithmetic
+            //checkCudaErrors(cuMemcpyHtoDAsync(dev_inputs[j], ((char *) input_args[j].data + offset*elem_size), elems_to_copy*elem_size, streams[stream_index]));
+            checkCudaErrors(cuMemcpyHtoDAsync(dev_inputs[j], (input_args[j].data + offset*elem_size), elems_to_copy*elem_size, streams[stream_index]));
 
-            printf("element %d copied successfully\n", j);
+            //printf("element %d copied successfully\n", j);
             kernel_params[j] = (void *) &dev_inputs[j];
         }
-        printf("copy successful\n");
+        //printf("copy successful\n");
         // TODO: need to set the correct offset in dev_output.
-        kernel_params[num_args] = (void *) &dev_output;
-        // TODO: in general should be this.
-        // FIXME: this doesn't seem to have enough levels of indirection
-        //kernel_params[num_args] = (void *) &(((double *)dev_output)[gpu_offset]);
+        //kernel_params[num_args] = (void *) &dev_output;
+        //kernel_params[num_args] = (void *) &((double **) dev_output + gpu_offset);
+        // since the output array is as long as the cpu array, we use the cpu
+        // offset
+        uint8_t *updated_dev_output = (uint8_t *) dev_output + offset*elem_size;
+        kernel_params[num_args] = (void *) &updated_dev_output;
 
-        printf("going to launch kernel!!\n");
+        //printf("going to launch kernel!!\n");
         struct timeval start, end, diff;
         gettimeofday(&start, NULL);
         checkCudaErrors(cuLaunchKernel(function, gridSizeX, gridSizeY, gridSizeZ,
                                  blockSizeX, blockSizeY, blockSizeZ,
                                  0, streams[stream_index], kernel_params, NULL));
-        printf("kernel call successful!\n");
+        //printf("kernel call successful!\n");
         // TODO: does it need any synchronize call here?
         gettimeofday(&end, NULL);
         timersub(&end, &start, &diff);
